@@ -266,8 +266,8 @@ generate_certificates() {
         -newkey rsa:4096 \
         -keyout "${key}" \
         -out "${crt}" \
-        -subj "/C=US/ST=Local/L=Local/O=SUDO-Pi/CN=sudopi.local" \
-        -addext "subjectAltName=DNS:sudopi.local,DNS:sudo-pi.local,DNS:localhost,IP:192.168.4.1"
+        -subj "/C=US/ST=Local/L=Local/O=SUDO-Pi/CN=sudo.local" \
+        -addext "subjectAltName=DNS:sudo.local,DNS:sudo-pi.local,DNS:localhost,IP:192.168.4.1"
 
     chmod 600 "${key}"
     chmod 644 "${crt}"
@@ -275,18 +275,18 @@ generate_certificates() {
     success "TLS certificate generated (10-year validity)"
 }
 
-# ─── Configure hostname + mDNS (sudopi.local) ────────────────────────────────
+# ─── Configure hostname + mDNS (sudo.local) ────────────────────────────────
 configure_mdns() {
-    info "Setting hostname to 'sudopi' and configuring mDNS..."
+    info "Setting hostname to 'sudo' and configuring mDNS..."
 
     # Set hostname
-    hostnamectl set-hostname sudopi
-    echo "sudopi" > /etc/hostname
+    hostnamectl set-hostname sudo
+    echo "sudo" > /etc/hostname
 
-    # Update /etc/hosts — replace old hostname entry, add sudopi if missing
-    sed -i "s/127\.0\.1\.1.*/127.0.1.1\tsudopi/" /etc/hosts
-    if ! grep -q "127.0.1.1.*sudopi" /etc/hosts; then
-        echo "127.0.1.1    sudopi sudopi.local" >> /etc/hosts
+    # Update /etc/hosts — replace old hostname entry, add sudo if missing
+    sed -i "s/127\.0\.1\.1.*/127.0.1.1\tsudo/" /etc/hosts
+    if ! grep -q "127.0.1.1.*sudo" /etc/hosts; then
+        echo "127.0.1.1    sudo sudo.local" >> /etc/hosts
     fi
 
     # Configure nsswitch.conf to resolve .local via mDNS
@@ -301,7 +301,7 @@ configure_mdns() {
         fi
     fi
 
-    # Avahi service advertisement — exposes sudopi.local on the network
+    # Avahi service advertisement — exposes sudo.local on the network
     mkdir -p /etc/avahi/services
     cat > /etc/avahi/services/sudo-pi.service <<'AVAHI'
 <?xml version="1.0" standalone='no'?>
@@ -330,7 +330,7 @@ AVAHI
     systemctl enable avahi-daemon
     systemctl restart avahi-daemon 2>/dev/null || true
 
-    success "mDNS configured — accessible at https://sudopi.local"
+    success "mDNS configured — accessible at https://sudo.local"
 }
 
 # ─── Configure NetworkManager to ignore wlan0 ────────────────────────────────
@@ -563,7 +563,7 @@ print_summary() {
     echo -e "${BOLD}${GREEN}║           SUDO-Pi Installation Complete!             ║${RESET}"
     echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════╝${RESET}"
     echo
-    echo -e "  ${BOLD}Dashboard URL:${RESET}  https://sudopi.local  ${CYAN}(via mDNS)${RESET}"
+    echo -e "  ${BOLD}Dashboard URL:${RESET}  https://sudo.local  ${CYAN}(via mDNS)${RESET}"
     echo -e "  ${BOLD}Direct IP:${RESET}      https://${AP_IP}"
     echo -e "  ${BOLD}AP SSID:${RESET}        SUDO-Pi"
     echo -e "  ${BOLD}AP Password:${RESET}    sudopi2024"
