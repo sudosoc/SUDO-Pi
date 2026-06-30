@@ -1,0 +1,109 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 222 47% 11%;
+    --foreground: 213 31% 91%;
+    --card: 222 47% 14%;
+    --card-foreground: 213 31% 91%;
+    --popover: 222 47% 11%;
+    --popover-foreground: 213 31% 91%;
+    --primary: 199 89% 48%;
+    --primary-foreground: 222 47% 11%;
+    --secondary: 222 47% 20%;
+    --secondary-foreground: 213 31% 91%;
+    --muted: 222 47% 18%;
+    --muted-foreground: 215 16% 57%;
+    --accent: 199 89% 48%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 222 47% 20%;
+    --input: 222 47% 18%;
+    --ring: 199 89% 48%;
+    --radius: 0.5rem;
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 98%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 10%;
+    --info: 199 89% 48%;
+    --info-foreground: 222 47% 11%;
+    --sidebar-width: 240px;
+    --sidebar-collapsed-width: 64px;
+    --header-height: 56px;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    font-feature-settings: "rlig" 1, "calt" 1;
+  }
+  ::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-muted rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-muted-foreground;
+  }
+  code, pre, .font-mono {
+    font-family: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+  }
+}
+
+@layer utilities {
+  .text-gradient {
+    @apply bg-gradient-to-r from-cyan-400 to-blue-500 bg-clip-text text-transparent;
+  }
+  .glass {
+    @apply bg-card/80 backdrop-blur-sm;
+  }
+  .sidebar-item {
+    @apply flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors
+           text-muted-foreground hover:text-foreground hover:bg-secondary cursor-pointer;
+  }
+  .sidebar-item.active {
+    @apply bg-primary/15 text-primary border-l-2 border-primary;
+  }
+  .metric-card {
+    @apply rounded-lg border border-border bg-card p-4 shadow-sm;
+  }
+  .status-dot {
+    @apply inline-block w-2 h-2 rounded-full;
+  }
+  .status-dot.running {
+    @apply bg-success;
+    box-shadow: 0 0 6px hsl(var(--success));
+  }
+  .status-dot.stopped {
+    @apply bg-muted-foreground;
+  }
+  .status-dot.error {
+    @apply bg-destructive;
+    box-shadow: 0 0 6px hsl(var(--destructive));
+  }
+}
+
+/* xterm.js dark theme overrides */
+.xterm-viewport {
+  background-color: transparent !important;
+}
+.terminal-container .xterm {
+  padding: 8px;
+  height: 100%;
+}
+.terminal-container .xterm-screen {
+  height: 100% !important;
+}

@@ -1,0 +1,45 @@
+[Unit]
+Description=SUDO-Pi Backend API (FastAPI + Uvicorn)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=exec
+User=sudo-pi
+Group=sudo-pi
+WorkingDirectory=/opt/sudo-pi/backend
+EnvironmentFile=/opt/sudo-pi/backend/.env
+ExecStart=/opt/sudo-pi/venv/bin/uvicorn app.main:app \
+    --host 127.0.0.1 \
+    --port 8000 \
+    --workers 1 \
+    --loop uvloop \
+    --no-access-log
+
+Restart=on-failure
+RestartSec=5s
+StartLimitInterval=60s
+StartLimitBurst=5
+
+# Security hardening
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/opt/sudo-pi/backend /var/log/sudo-pi /tmp
+PrivateTmp=yes
+PrivateDevices=no
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+
+# Allow network access and capabilities needed for system management
+AmbientCapabilities=CAP_NET_ADMIN CAP_SYS_NICE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_NICE CAP_SETUID CAP_SETGID
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=sudo-pi-backend
+
+[Install]
+WantedBy=multi-user.target

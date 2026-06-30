@@ -1,0 +1,67 @@
+import { lazy } from "react";
+import { BrowserRouter, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { useAuthStore } from "@/stores/authStore";
+import { MainLayout } from "@/components/layout/MainLayout";
+import LoginPage from "@/pages/LoginPage";
+
+const DashboardPage   = lazy(() => import("@/pages/DashboardPage"));
+const SystemPage      = lazy(() => import("@/pages/SystemPage"));
+const TerminalPage    = lazy(() => import("@/pages/TerminalPage"));
+const FilesPage       = lazy(() => import("@/pages/FilesPage"));
+const NetworkPage     = lazy(() => import("@/pages/NetworkPage"));
+const PackagesPage    = lazy(() => import("@/pages/PackagesPage"));
+const DockerPage      = lazy(() => import("@/pages/DockerPage"));
+const BluetoothPage   = lazy(() => import("@/pages/BluetoothPage"));
+const GpioPage        = lazy(() => import("@/pages/GpioPage"));
+const UsersPage       = lazy(() => import("@/pages/UsersPage"));
+const SecurityPage    = lazy(() => import("@/pages/SecurityPage"));
+const SettingsPage    = lazy(() => import("@/pages/SettingsPage"));
+const DevicesPage     = lazy(() => import("@/pages/DevicesPage"));
+const LogsPage        = lazy(() => import("@/pages/LogsPage"));
+
+function ProtectedLayout() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  if (!isAuthenticated) return <Navigate to="/login" replace />;
+  return <MainLayout />;
+}
+
+function AdminGuard() {
+  const user = useAuthStore((s) => s.user);
+  if (!user) return <Navigate to="/login" replace />;
+  if (user.role !== "admin") return <Navigate to="/" replace />;
+  return <Outlet />;
+}
+
+export default function App() {
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  return (
+    <BrowserRouter>
+      <Routes>
+        <Route
+          path="/login"
+          element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
+        />
+        <Route element={<ProtectedLayout />}>
+          <Route index element={<DashboardPage />} />
+          <Route path="/system"    element={<SystemPage />} />
+          <Route path="/terminal"  element={<TerminalPage />} />
+          <Route path="/files"     element={<FilesPage />} />
+          <Route path="/network"   element={<NetworkPage />} />
+          <Route path="/packages"  element={<PackagesPage />} />
+          <Route path="/docker"    element={<DockerPage />} />
+          <Route path="/bluetooth" element={<BluetoothPage />} />
+          <Route path="/gpio"      element={<GpioPage />} />
+          <Route path="/devices"   element={<DevicesPage />} />
+          <Route path="/logs"      element={<LogsPage />} />
+          <Route path="/settings"  element={<SettingsPage />} />
+          <Route element={<AdminGuard />}>
+            <Route path="/users"    element={<UsersPage />} />
+            <Route path="/security" element={<SecurityPage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
+      </Routes>
+    </BrowserRouter>
+  );
+}

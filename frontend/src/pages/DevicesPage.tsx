@@ -1,0 +1,191 @@
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { RefreshCw, Monitor, Wifi, HardDrive } from "lucide-react";
+import { apiClient } from "@/api/client";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { formatRelative } from "@/lib/utils";
+
+interface ConnectedDevice {
+  mac_address: string;
+  ip_address: string | null;
+  hostname: string | null;
+  vendor: string | null;
+  interface: string;
+  signal_dbm: number | null;
+  connected_since: string | null;
+  last_seen: string | null;
+  is_ap_client: boolean;
+}
+
+export default function DevicesPage() {
+  const [search, setSearch] = useState("");
+
+  const { data: apClients, isLoading: loadingAp, refetch: refetchAp } = useQuery({
+    queryKey: ["ap-clients"],
+    queryFn: async () => {
+      const { data } = await apiClient.get("/network/ap/clients");
+      return data as ConnectedDevice[];
+    },
+    refetchInterval: 10000,
+  });
+
+  const { data: arpTable, isLoading: loadingArp, refetch: refetchArp } = useQuery({
+    queryKey: ["arp-table"],
+    queryFn: async () => {
+      const { data } = await apiClient.get("/network/arp");
+      return data as ConnectedDevice[];
+    },
+    refetchInterval: 30000,
+  });
+
+  const allDevices = [
+    ...(apClients ?? []).map((d) => ({ ...d, is_ap_client: true })),
+    ...(arpTable ?? []).filter(
+      (d) => !(apClients ?? []).some((c) => c.mac_address === d.mac_address)
+    ).map((d) => ({ ...d, is_ap_client: false })),
+  ];
+
+  const filtered = allDevices.filter((d) => {
+    if (!search) return true;
+    const term = search.toLowerCase();
+    return (
+      d.mac_address.toLowerCase().includes(term) ||
+      (d.ip_address ?? "").toLowerCase().includes(term) ||
+      (d.hostname ?? "").toLowerCase().includes(term) ||
+      (d.vendor ?? "").toLowerCase().includes(term)
+    );
+  });
+
+  const refresh = () => { refetchAp(); refetchArp(); };
+  const isLoading = loadingAp || loadingArp;
+
+  return (
+    <div className="p-6 space-y-4">
+      <div className="flex items-center gap-2">
+        <div className="relative flex-1 max-w-xs">
+          <Input
+            placeholder="Search by IP, MAC, hostname…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="pl-3"
+          />
+        </div>
+        <Button variant="outline" size="sm" onClick={refresh} loading={isLoading}>
+          <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh
+        </Button>
+        <span className="text-xs text-muted-foreground ml-auto">
+          {filtered.length} device{filtered.length !== 1 ? "s" : ""}
+        </span>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-success/10 flex items-center justify-center">
+                <Wifi className="w-5 h-5 text-success" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold tabular-nums">{apClients?.length ?? "—"}</p>
+                <p className="text-xs text-muted-foreground">AP Clients</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="pt-4">
+            <div className="flex items-center gap-3">
+              <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center">
+                <Monitor className="w-5 h-5 text-primary" />
+              </div>
+              <div>
+                <p className="text-2xl font-bold tabular-nums">{allDevices.length}</p>
+                <p className="text-xs text-muted-foreground">Total Devices</p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>All Devices</CardTitle>
+        </CardHeader>
+        <CardContent className="p-0">
+          <ScrollArea className="h-[calc(100vh-340px)]">
+            <table className="w-full text-sm">
+              <thead className="sticky top-0 bg-card border-b border-border">
+                <tr>
+                  <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Device</th>
+                  <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">IP Address</th>
+                  <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs hidden md:table-cell">MAC Address</th>
+                  <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs hidden lg:table-cell">Interface</th>
+                  <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs hidden lg:table-cell">Last Seen</th>
+                  <th className="text-center px-4 py-2 text-muted-foreground font-medium text-xs">Type</th>
+                </tr>
+              </thead>
+              <tbody>
+                {isLoading
+                  ? Array.from({ length: 6 }).map((_, i) => (
+                      <tr key={i} className="border-b border-border/50">
+                        {Array.from({ length: 6 }).map((_, j) => (
+                          <td key={j} className="px-4 py-3">
+                            <div className="h-4 bg-muted rounded animate-pulse" />
+                          </td>
+                        ))}
+                      </tr>
+                    ))
+                  : filtered.map((device) => (
+                      <tr key={device.mac_address} className="border-b border-border/50 hover:bg-secondary/20">
+                        <td className="px-4 py-3">
+                          <div className="flex items-center gap-2">
+                            <div className="w-7 h-7 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                              <Monitor className="w-3.5 h-3.5 text-primary" />
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">{device.hostname || "Unknown"}</p>
+                              {device.vendor && (
+                                <p className="text-xs text-muted-foreground">{device.vendor}</p>
+                              )}
+                            </div>
+                          </div>
+                        </td>
+                        <td className="px-4 py-3 font-mono text-sm">{device.ip_address || "—"}</td>
+                        <td className="px-4 py-3 font-mono text-xs text-muted-foreground hidden md:table-cell">
+                          {device.mac_address}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell">
+                          {device.interface}
+                        </td>
+                        <td className="px-4 py-3 text-xs text-muted-foreground hidden lg:table-cell">
+                          {device.last_seen ? formatRelative(device.last_seen) : device.connected_since ? formatRelative(device.connected_since) : "—"}
+                        </td>
+                        <td className="px-4 py-3 text-center">
+                          <Badge
+                            variant={device.is_ap_client ? "success" : "muted"}
+                            className="text-[10px]"
+                          >
+                            {device.is_ap_client ? "Wi-Fi AP" : "Network"}
+                          </Badge>
+                        </td>
+                      </tr>
+                    ))}
+                {(!isLoading && filtered.length === 0) && (
+                  <tr>
+                    <td colSpan={6} className="text-center py-12 text-muted-foreground">
+                      {search ? "No devices match the search" : "No devices found"}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </ScrollArea>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

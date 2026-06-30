@@ -1,0 +1,10 @@
+# NetworkManager connection profile: wlan0 is UNMANAGED.
+# hostapd + dnsmasq control wlan0 directly.
+# This file tells NetworkManager to leave wlan0 alone.
+#
+# Install path: /etc/NetworkManager/conf.d/99-unmanaged-wlan0.conf
+# Content: [keyfile]
+#          unmanaged-devices=interface-name:wlan0
+
+[keyfile]
+unmanaged-devices=interface-name:wlan0
