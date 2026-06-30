@@ -1,0 +1,29 @@
+# Force LF line endings for all text files (project runs on Linux)
+* text=auto eol=lf
+
+# Explicitly LF
+*.py        eol=lf
+*.ts        eol=lf
+*.tsx       eol=lf
+*.js        eol=lf
+*.json      eol=lf
+*.md        eol=lf
+*.txt       eol=lf
+*.sh        eol=lf
+*.conf      eol=lf
+*.service   eol=lf
+*.css       eol=lf
+*.html      eol=lf
+*.ini       eol=lf
+*.yml       eol=lf
+*.yaml      eol=lf
+
+# Binary - no line ending conversion
+*.png       binary
+*.jpg       binary
+*.gif       binary
+*.ico       binary
+*.woff      binary
+*.woff2     binary
+*.ttf       binary
+*.eot       binary

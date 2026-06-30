@@ -89,6 +89,10 @@ install_system_packages() {
         hostapd \
         dnsmasq \
         network-manager \
+        avahi-daemon \
+        avahi-utils \
+        nss-mdns \
+        libnss-mdns \
         curl \
         git \
         openssl \
@@ -262,13 +266,71 @@ generate_certificates() {
         -newkey rsa:4096 \
         -keyout "${key}" \
         -out "${crt}" \
-        -subj "/C=US/ST=Local/L=Local/O=SUDO-Pi/CN=sudo-pi.local" \
-        -addext "subjectAltName=DNS:sudo-pi.local,DNS:localhost,IP:192.168.4.1"
+        -subj "/C=US/ST=Local/L=Local/O=SUDO-Pi/CN=sudopi.local" \
+        -addext "subjectAltName=DNS:sudopi.local,DNS:sudo-pi.local,DNS:localhost,IP:192.168.4.1"
 
     chmod 600 "${key}"
     chmod 644 "${crt}"
     ROLLBACK_STEPS+=("rm -f ${crt} ${key}")
     success "TLS certificate generated (10-year validity)"
+}
+
+# ─── Configure hostname + mDNS (sudopi.local) ────────────────────────────────
+configure_mdns() {
+    info "Setting hostname to 'sudopi' and configuring mDNS..."
+
+    # Set hostname
+    hostnamectl set-hostname sudopi
+    echo "sudopi" > /etc/hostname
+
+    # Update /etc/hosts — replace old hostname entry, add sudopi if missing
+    sed -i "s/127\.0\.1\.1.*/127.0.1.1\tsudopi/" /etc/hosts
+    if ! grep -q "127.0.1.1.*sudopi" /etc/hosts; then
+        echo "127.0.1.1    sudopi sudopi.local" >> /etc/hosts
+    fi
+
+    # Configure nsswitch.conf to resolve .local via mDNS
+    # Insert mdns4_minimal before dns (and before resolve if present)
+    if ! grep -q "mdns4_minimal" /etc/nsswitch.conf; then
+        sed -i 's/^\(hosts:.*\)\(files\)\(.*\)\(dns\)/\1\2\3mdns4_minimal [NOTFOUND=return] \4/' \
+            /etc/nsswitch.conf 2>/dev/null || true
+        # Fallback: if above didn't work, just append mdns4_minimal
+        if ! grep -q "mdns4_minimal" /etc/nsswitch.conf; then
+            sed -i 's/^hosts:.*/hosts:          files mdns4_minimal [NOTFOUND=return] dns/' \
+                /etc/nsswitch.conf
+        fi
+    fi
+
+    # Avahi service advertisement — exposes sudopi.local on the network
+    mkdir -p /etc/avahi/services
+    cat > /etc/avahi/services/sudo-pi.service <<'AVAHI'
+<?xml version="1.0" standalone='no'?>
+<!DOCTYPE service-group SYSTEM "avahi-service.dtd">
+<service-group>
+  <name replace-wildcards="yes">SUDO-Pi Dashboard (%h)</name>
+  <service>
+    <type>_https._tcp</type>
+    <port>443</port>
+  </service>
+  <service>
+    <type>_http._tcp</type>
+    <port>80</port>
+  </service>
+</service-group>
+AVAHI
+
+    # Configure avahi to only advertise on AP interface
+    if [[ -f /etc/avahi/avahi-daemon.conf ]]; then
+        sed -i "s/^#*allow-interfaces=.*/allow-interfaces=${AP_INTERFACE},lo/" \
+            /etc/avahi/avahi-daemon.conf
+        sed -i "s/^#*deny-interfaces=.*/deny-interfaces=${INET_INTERFACE}/" \
+            /etc/avahi/avahi-daemon.conf
+    fi
+
+    systemctl enable avahi-daemon
+    systemctl restart avahi-daemon 2>/dev/null || true
+
+    success "mDNS configured — accessible at https://sudopi.local"
 }
 
 # ─── Configure NetworkManager to ignore wlan0 ────────────────────────────────
@@ -431,24 +493,15 @@ FILTER
     success "Fail2Ban configured"
 }
 
-# ─── Initialize database ──────────────────────────────────────────────────────
+# ─── Initialize database via Alembic migrations ───────────────────────────────
 initialize_database() {
-    info "Initializing database..."
+    info "Running database migrations..."
     cd "${BACKEND_DIR}"
-    sudo -u "${SERVICE_USER}" "${VENV_DIR}/bin/python" -c "
-import asyncio
-import sys
-sys.path.insert(0, '.')
-from app.core.database import create_tables
-from app.core.config import get_settings
 
-async def init():
-    await create_tables()
-    print('Database initialized')
+    # Run alembic migrations (idempotent: 'upgrade head' is safe to run multiple times)
+    sudo -u "${SERVICE_USER}" "${VENV_DIR}/bin/alembic" upgrade head
 
-asyncio.run(init())
-"
-    success "Database initialized"
+    success "Database schema up to date"
 }
 
 # ─── Start all services ───────────────────────────────────────────────────────
@@ -458,6 +511,7 @@ start_services() {
     # Order matters: interface up → hostapd → dnsmasq → backend → nginx
     ip link set "${AP_INTERFACE}" up 2>/dev/null || true
 
+    systemctl restart avahi-daemon && success "avahi-daemon started" || warn "avahi-daemon failed to start"
     systemctl restart hostapd    && success "hostapd started"    || warn "hostapd failed to start"
     systemctl restart dnsmasq    && success "dnsmasq started"    || warn "dnsmasq failed to start"
     systemctl restart sudo-pi-backend && success "Backend started" || warn "Backend failed to start"
@@ -479,6 +533,7 @@ verify_installation() {
         fi
     }
 
+    check_service avahi-daemon
     check_service hostapd
     check_service dnsmasq
     check_service sudo-pi-backend
@@ -508,7 +563,8 @@ print_summary() {
     echo -e "${BOLD}${GREEN}║           SUDO-Pi Installation Complete!             ║${RESET}"
     echo -e "${BOLD}${GREEN}╚══════════════════════════════════════════════════════╝${RESET}"
     echo
-    echo -e "  ${BOLD}Dashboard URL:${RESET}  https://${AP_IP}"
+    echo -e "  ${BOLD}Dashboard URL:${RESET}  https://sudopi.local  ${CYAN}(via mDNS)${RESET}"
+    echo -e "  ${BOLD}Direct IP:${RESET}      https://${AP_IP}"
     echo -e "  ${BOLD}AP SSID:${RESET}        SUDO-Pi"
     echo -e "  ${BOLD}AP Password:${RESET}    sudopi2024"
     echo -e "  ${BOLD}Admin Login:${RESET}    admin / admin"
@@ -551,6 +607,7 @@ main() {
     build_frontend
     generate_env
     generate_certificates
+    configure_mdns
     configure_networkmanager
     configure_hostapd
     configure_dnsmasq

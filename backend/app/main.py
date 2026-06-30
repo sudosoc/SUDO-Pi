@@ -75,7 +75,7 @@ app.add_middleware(
 if settings.is_production:
     app.add_middleware(
         TrustedHostMiddleware,
-        allowed_hosts=["pi.local", "192.168.4.1", "localhost", "127.0.0.1"],
+        allowed_hosts=["sudopi.local", "sudo-pi.local", "192.168.4.1", "localhost", "127.0.0.1"],
     )
 
 
