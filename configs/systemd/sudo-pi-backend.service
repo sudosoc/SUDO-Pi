@@ -21,13 +21,12 @@ RestartSec=5s
 StartLimitInterval=60s
 StartLimitBurst=5
 
-# Capabilities for full system management:
-#   CAP_NET_ADMIN / CAP_NET_RAW  — network config, raw sockets
-#   CAP_SYS_NICE                 — process priority control
-#   CAP_DAC_READ_SEARCH          — read any file regardless of owner (file manager)
-#   CAP_DAC_OVERRIDE             — write any file regardless of owner (file manager writes, hostapd.conf)
+# Grant specific ambient capabilities to the service process itself
+# (inherited by Python I/O for file manager reads/writes and network ops).
+# CapabilityBoundingSet is intentionally left at the system default (all caps)
+# so that SUID binaries like sudo can still acquire CAP_SETUID/CAP_SETGID
+# and switch to root — a restricted bounding set would silently break sudo.
 AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_NICE CAP_DAC_READ_SEARCH CAP_DAC_OVERRIDE
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_NICE CAP_DAC_READ_SEARCH CAP_DAC_OVERRIDE
 
 StandardOutput=journal
 StandardError=journal

@@ -289,6 +289,9 @@ async def get_ap_status(db: AsyncSession) -> ApStatusResponse:
             channel=settings.AP_CHANNEL,
             country_code=settings.AP_COUNTRY_CODE,
             is_active=True,
+            hide_ssid=False,
+            max_clients=20,
+            band="2.4GHz",
         )
 
     code, out, _ = await _run(["sudo", "systemctl", "is-active", "hostapd"])
