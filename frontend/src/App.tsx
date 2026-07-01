@@ -25,8 +25,8 @@ const SshPage         = lazy(() => import("@/pages/SshPage"));
 const MetricsPage     = lazy(() => import("@/pages/MetricsPage"));
 const AlertsPage      = lazy(() => import("@/pages/AlertsPage"));
 const StoragePage     = lazy(() => import("@/pages/StoragePage"));
-const SpeedTestPage   = lazy(() => import("@/pages/SpeedTestPage"));
 const DisplayPage     = lazy(() => import("@/pages/DisplayPage"));
+const ProcessPage     = lazy(() => import("@/pages/ProcessPage"));
 
 function ProtectedLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -70,9 +70,9 @@ export default function App() {
           <Route path="/ssh"       element={<SshPage />} />
           <Route path="/metrics"   element={<MetricsPage />} />
           <Route path="/alerts"    element={<AlertsPage />} />
-          <Route path="/storage"   element={<StoragePage />} />
-          <Route path="/speedtest" element={<SpeedTestPage />} />
-          <Route path="/display"   element={<DisplayPage />} />
+          <Route path="/storage"    element={<StoragePage />} />
+          <Route path="/display"    element={<DisplayPage />} />
+          <Route path="/processes"  element={<ProcessPage />} />
           <Route element={<AdminGuard />}>
             <Route path="/users"    element={<UsersPage />} />
             <Route path="/security" element={<SecurityPage />} />

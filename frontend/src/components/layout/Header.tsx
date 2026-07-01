@@ -1,4 +1,4 @@
-import { Bell, Wifi, WifiOff } from "lucide-react";
+import { Bell, Wifi, WifiOff, Search } from "lucide-react";
 import { useSystemStore } from "@/stores/systemStore";
 import { useNotificationStore } from "@/stores/notificationStore";
 import { Button } from "@/components/ui/button";
@@ -8,9 +8,10 @@ import { formatUptime } from "@/lib/utils";
 
 interface HeaderProps {
   title: string;
+  onOpenPalette: () => void;
 }
 
-export function Header({ title }: HeaderProps) {
+export function Header({ title, onOpenPalette }: HeaderProps) {
   const { wsConnected, stats } = useSystemStore();
   const { unreadCount, notifications, markAllRead } = useNotificationStore();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -27,6 +28,17 @@ export function Header({ title }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
+        {/* Gift 3: Command palette trigger */}
+        <button
+          onClick={onOpenPalette}
+          className="hidden sm:flex items-center gap-2 h-8 px-3 rounded-lg border border-border bg-background/50 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
+        >
+          <Search className="w-3 h-3" />
+          <span>Search…</span>
+          <kbd className="ml-2 text-[10px] border border-border rounded px-1 py-0.5 font-mono bg-muted">⌘K</kbd>
+        </button>
+
+        {/* WS status */}
         <div
           className={cn(
             "flex items-center gap-1.5 text-xs px-2 py-1 rounded-full",
@@ -36,24 +48,46 @@ export function Header({ title }: HeaderProps) {
           )}
           title={wsConnected ? "Real-time connected" : "Reconnecting…"}
         >
-          {wsConnected ? (
-            <Wifi className="w-3 h-3" />
-          ) : (
-            <WifiOff className="w-3 h-3" />
-          )}
+          {wsConnected
+            ? <Wifi className="w-3 h-3" />
+            : <WifiOff className="w-3 h-3" />
+          }
           <span className="hidden sm:inline">{wsConnected ? "Live" : "Offline"}</span>
         </div>
 
+        {/* Live stats */}
         {stats && (
-          <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground mr-2">
-            <span>CPU {stats.cpu.percent.toFixed(0)}%</span>
-            <span>RAM {stats.memory.percent.toFixed(0)}%</span>
-            {stats.temperature.cpu && (
-              <span>{stats.temperature.cpu.toFixed(0)}°C</span>
+          <div className="hidden md:flex items-center gap-3 text-xs text-muted-foreground mr-2">
+            <span
+              className={cn(
+                "font-medium",
+                stats.cpu.percent > 80 ? "text-red-400" : stats.cpu.percent > 50 ? "text-yellow-400" : ""
+              )}
+            >
+              CPU {stats.cpu.percent.toFixed(0)}%
+            </span>
+            <span
+              className={cn(
+                "font-medium",
+                stats.memory.percent > 85 ? "text-red-400" : stats.memory.percent > 65 ? "text-yellow-400" : ""
+              )}
+            >
+              RAM {stats.memory.percent.toFixed(0)}%
+            </span>
+            {stats.temperature.cpu != null && (
+              <span
+                className={cn(
+                  "font-medium",
+                  stats.temperature.cpu > 70 ? "text-red-400" : stats.temperature.cpu > 55 ? "text-yellow-400" : ""
+                )}
+              >
+                {stats.temperature.cpu.toFixed(0)}°C
+              </span>
             )}
           </div>
         )}
 
+        {/* Notification bell */}
         <div className="relative">
           <Button
             variant="ghost"
@@ -101,9 +135,9 @@ export function Header({ title }: HeaderProps) {
                           <div
                             className={cn(
                               "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
-                              n.level === "error" ? "bg-destructive" :
-                              n.level === "warning" ? "bg-warning" :
-                              n.level === "success" ? "bg-success" : "bg-info"
+                              n.level === "error"   ? "bg-destructive" :
+                              n.level === "warning" ? "bg-warning"     :
+                              n.level === "success" ? "bg-success"     : "bg-info"
                             )}
                           />
                           <div className="flex-1 min-w-0">

@@ -25,6 +25,7 @@ from app.api.v1 import (
     storage,
     speedtest,
     display,
+    processes,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -51,3 +52,4 @@ api_router.include_router(alerts.router)
 api_router.include_router(storage.router)
 api_router.include_router(speedtest.router)
 api_router.include_router(display.router)
+api_router.include_router(processes.router)

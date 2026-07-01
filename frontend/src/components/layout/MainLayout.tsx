@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
+import { CommandPalette } from "@/components/CommandPalette";
 import { useSystemMetrics } from "@/hooks/useSystemMetrics";
 
 function PageLoader() {
@@ -14,29 +15,29 @@ function PageLoader() {
 }
 
 const ROUTE_TITLES: Record<string, string> = {
-  "/": "Dashboard",
-  "/system": "System Monitor",
-  "/terminal": "Terminal",
-  "/files": "File Manager",
-  "/network": "Network Manager",
-  "/packages": "Package Manager",
-  "/docker": "Docker Manager",
-  "/bluetooth": "Bluetooth",
-  "/gpio": "GPIO",
-  "/devices": "Connected Devices",
-  "/logs": "Logs",
-  "/vpn": "VPN Manager",
-  "/firewall": "Firewall Manager",
-  "/cron": "Cron Job Manager",
-  "/ssh": "SSH Manager",
-  "/metrics": "Performance Metrics",
-  "/alerts": "Alert System",
-  "/storage": "Storage Manager",
-  "/speedtest": "Internet Speed Test",
-  "/display": "Display Manager",
-  "/users": "Users",
-  "/security": "Security",
-  "/settings": "Settings",
+  "/":           "Dashboard",
+  "/system":     "System Monitor",
+  "/processes":  "Process Manager",
+  "/terminal":   "Terminal",
+  "/files":      "File Manager",
+  "/network":    "Network Manager",
+  "/packages":   "Package Manager",
+  "/docker":     "Docker Manager",
+  "/bluetooth":  "Bluetooth",
+  "/gpio":       "GPIO",
+  "/devices":    "Connected Devices",
+  "/logs":       "Logs",
+  "/vpn":        "VPN Manager",
+  "/firewall":   "Firewall Manager",
+  "/cron":       "Cron Job Manager",
+  "/ssh":        "SSH Manager",
+  "/metrics":    "Performance Metrics",
+  "/alerts":     "Alert System",
+  "/storage":    "Storage Manager",
+  "/display":    "Display Manager",
+  "/users":      "Users",
+  "/security":   "Security",
+  "/settings":   "Settings",
 };
 
 function getTitle(pathname: string): string {
@@ -49,7 +50,8 @@ function getTitle(pathname: string): string {
 
 export function MainLayout() {
   const location = useLocation();
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed]     = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
   const title = getTitle(location.pathname);
 
   useSystemMetrics();
@@ -57,6 +59,18 @@ export function MainLayout() {
   useEffect(() => {
     const stored = localStorage.getItem("sidebar-collapsed");
     if (stored !== null) setSidebarCollapsed(stored === "true");
+  }, []);
+
+  // Global Cmd+K / Ctrl+K shortcut
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "k") {
+        e.preventDefault();
+        setPaletteOpen((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
   }, []);
 
   const toggleSidebar = () => {
@@ -70,7 +84,7 @@ export function MainLayout() {
     <div className="flex h-screen overflow-hidden bg-background">
       <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
       <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header title={title} />
+        <Header title={title} onOpenPalette={() => setPaletteOpen(true)} />
         <main className="flex-1 overflow-auto">
           <div className="h-full">
             <ErrorBoundary>
@@ -81,6 +95,9 @@ export function MainLayout() {
           </div>
         </main>
       </div>
+
+      {/* Gift 2: Command Palette */}
+      <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );
 }

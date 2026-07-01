@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import ReactECharts from "echarts-for-react";
-import { Activity, Thermometer, HardDrive, Wifi, Heart } from "lucide-react";
+import { Activity, Thermometer, HardDrive, Wifi, Heart, Download } from "lucide-react";
 import { metricsApi, type MetricsPoint } from "@/api/metrics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -233,18 +233,56 @@ export default function MetricsPage() {
           <h2 className="text-lg font-semibold">Performance History</h2>
           <p className="text-sm text-muted-foreground">Historical system metrics — recorded every 60 s</p>
         </div>
-        <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
-          {TIME_RANGES.map((r) => (
+        <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
+            {TIME_RANGES.map((r) => (
+              <Button
+                key={r.hours}
+                variant="ghost"
+                size="sm"
+                className={cn("h-7 px-3 text-xs font-medium", hours === r.hours && "bg-background shadow-sm text-foreground")}
+                onClick={() => setHours(r.hours)}
+              >
+                {r.label}
+              </Button>
+            ))}
+          </div>
+          {/* Gift 8: CSV export */}
+          {points.length > 0 && (
             <Button
-              key={r.hours}
-              variant="ghost"
+              variant="outline"
               size="sm"
-              className={cn("h-7 px-3 text-xs font-medium", hours === r.hours && "bg-background shadow-sm text-foreground")}
-              onClick={() => setHours(r.hours)}
+              className="gap-1.5 h-8 text-xs"
+              onClick={() => {
+                const rates = computeRates(points);
+                const rateMap = new Map(rates.map((r) => [r.t, r]));
+                const header = "timestamp,cpu_%,ram_%,disk_%,temp_c,rx_bytes_s,tx_bytes_s";
+                const rows = points.map((p) => {
+                  const r = rateMap.get(p.t);
+                  return [
+                    new Date(p.t).toISOString(),
+                    p.cpu.toFixed(2),
+                    p.ram.toFixed(2),
+                    p.disk?.toFixed(2) ?? "",
+                    p.temp?.toFixed(2) ?? "",
+                    r?.rx.toFixed(0) ?? "",
+                    r?.tx.toFixed(0) ?? "",
+                  ].join(",");
+                });
+                const csv = [header, ...rows].join("\n");
+                const blob = new Blob([csv], { type: "text/csv" });
+                const url  = URL.createObjectURL(blob);
+                const a    = document.createElement("a");
+                a.href = url;
+                a.download = `metrics_${new Date().toISOString().slice(0,10)}.csv`;
+                a.click();
+                URL.revokeObjectURL(url);
+              }}
             >
-              {r.label}
+              <Download className="w-3.5 h-3.5" />
+              CSV
             </Button>
-          ))}
+          )}
         </div>
       </div>
 
@@ -283,6 +321,65 @@ export default function MetricsPage() {
         <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
           Loading metrics…
         </div>
+      )}
+
+      {/* Gift 9: 24h CPU Heatmap (visible when 24h or 7d selected) */}
+      {!isLoading && hasData && hours >= 24 && (
+        <Card>
+          <CardHeader className="pb-2">
+            <CardTitle className="flex items-center gap-1.5 text-sm font-medium">
+              <Activity className="w-3.5 h-3.5 text-cyan-400" />
+              CPU Activity Heatmap — Hour of Day
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="pt-0">
+            {(() => {
+              // Group by hour bucket: compute avg CPU per hour-of-day (0–23)
+              const hourBuckets = Array.from({ length: 24 }, () => ({ sum: 0, count: 0 }));
+              points.forEach((p) => {
+                const h = new Date(p.t).getHours();
+                hourBuckets[h].sum   += p.cpu;
+                hourBuckets[h].count += 1;
+              });
+              const heatData = hourBuckets.map((b, h) => ({
+                hour: h,
+                avg:  b.count > 0 ? b.sum / b.count : null,
+              }));
+
+              return (
+                <div className="flex gap-0.5 flex-wrap">
+                  {heatData.map(({ hour, avg }) => {
+                    const pct = avg ?? 0;
+                    const bg  = pct >= 80 ? "#f87171"
+                              : pct >= 60 ? "#fb923c"
+                              : pct >= 40 ? "#fbbf24"
+                              : pct >= 15 ? "#4ade80"
+                              : "#1f2937";
+                    return (
+                      <div
+                        key={hour}
+                        title={`${String(hour).padStart(2, "0")}:00 — ${avg != null ? `avg ${avg.toFixed(1)}%` : "no data"}`}
+                        className="flex-1 min-w-[20px] h-9 rounded-sm transition-all cursor-default flex flex-col items-center justify-end pb-0.5 gap-0.5"
+                        style={{ backgroundColor: bg + "cc" }}
+                      >
+                        <span className="text-[8px] text-white/70 font-mono leading-none">
+                          {String(hour).padStart(2, "0")}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()}
+            <div className="flex items-center gap-3 mt-2 text-[10px] text-muted-foreground">
+              <span>Low</span>
+              {(["#1f2937", "#4ade80cc", "#fbbf24cc", "#fb923ccc", "#f87171cc"] as const).map((c) => (
+                <span key={c} className="w-4 h-2 rounded-sm inline-block" style={{ backgroundColor: c }} />
+              ))}
+              <span>High</span>
+            </div>
+          </CardContent>
+        </Card>
       )}
 
       {!isLoading && (

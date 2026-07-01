@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Wifi, WifiOff, Router, RefreshCw,
-  Users, Lock, Unlock, Save,
+  Users, Lock, Unlock, Save, Network,
 } from "lucide-react";
 import { networkApi } from "@/api/network";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,6 +14,129 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import type { WifiScanResult } from "@/types";
+import { apiClient } from "@/api/client";
+
+// ─── Open Ports Types ─────────────────────────────────────────────────────────
+
+interface OpenPort {
+  proto:   "tcp" | "udp";
+  port:    number;
+  address: string;
+  state:   string;
+  process: string | null;
+  pid:     number | null;
+}
+
+const WELL_KNOWN_PORTS: Record<number, string> = {
+  22: "SSH", 80: "HTTP", 443: "HTTPS", 3000: "Node.js",
+  5000: "Flask", 8000: "HTTP-alt", 8080: "HTTP-proxy",
+  8443: "HTTPS-alt", 3306: "MySQL", 5432: "PostgreSQL",
+  6379: "Redis", 27017: "MongoDB", 51820: "WireGuard",
+  1194: "OpenVPN", 53: "DNS", 67: "DHCP", 68: "DHCP",
+  111: "RPC", 2049: "NFS", 445: "SMB", 139: "NetBIOS",
+};
+
+// ─── Open Ports Tab ───────────────────────────────────────────────────────────
+
+function OpenPortsTab() {
+  const queryClient = useQueryClient();
+  const { data: ports = [], isLoading } = useQuery({
+    queryKey:       ["open-ports"],
+    queryFn:        async () => {
+      const { data } = await apiClient.get<OpenPort[]>("/processes/ports");
+      return data;
+    },
+    refetchInterval: 15000,
+    staleTime:       10000,
+  });
+
+  const tcp = ports.filter((p) => p.proto === "tcp");
+  const udp = ports.filter((p) => p.proto === "udp");
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          {ports.length} listening {ports.length === 1 ? "port" : "ports"} —
+          {" "}{tcp.length} TCP · {udp.length} UDP
+        </p>
+        <Button
+          size="icon-sm"
+          variant="ghost"
+          onClick={() => queryClient.invalidateQueries({ queryKey: ["open-ports"] })}
+        >
+          <RefreshCw className={cn("w-3.5 h-3.5", isLoading && "animate-spin")} />
+        </Button>
+      </div>
+
+      <Card>
+        <CardContent className="p-0">
+          {isLoading && !ports.length ? (
+            <div className="space-y-1 p-4">
+              {Array.from({ length: 6 }).map((_, i) => (
+                <div key={i} className="h-8 bg-muted rounded animate-pulse" />
+              ))}
+            </div>
+          ) : !ports.length ? (
+            <div className="flex flex-col items-center py-12 text-muted-foreground">
+              <Network className="w-10 h-10 mb-2 opacity-30" />
+              <p className="text-sm">No listening ports found</p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="border-b border-border">
+                  <tr>
+                    <th className="text-left text-xs text-muted-foreground font-medium px-4 py-2">Proto</th>
+                    <th className="text-left text-xs text-muted-foreground font-medium px-4 py-2">Port</th>
+                    <th className="text-left text-xs text-muted-foreground font-medium px-4 py-2">Service</th>
+                    <th className="text-left text-xs text-muted-foreground font-medium px-4 py-2">Address</th>
+                    <th className="text-left text-xs text-muted-foreground font-medium px-4 py-2 hidden sm:table-cell">Process</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {ports.map((p, i) => (
+                    <tr key={i} className="border-b border-border/30 last:border-0 hover:bg-secondary/20 transition-colors">
+                      <td className="px-4 py-2">
+                        <span className={cn(
+                          "text-[10px] font-bold font-mono px-1.5 py-0.5 rounded",
+                          p.proto === "tcp" ? "bg-blue-500/10 text-blue-400" : "bg-purple-500/10 text-purple-400"
+                        )}>
+                          {p.proto.toUpperCase()}
+                        </span>
+                      </td>
+                      <td className="px-4 py-2 font-mono font-bold text-foreground">{p.port}</td>
+                      <td className="px-4 py-2">
+                        {WELL_KNOWN_PORTS[p.port] ? (
+                          <span className="text-xs text-cyan-400 font-medium">{WELL_KNOWN_PORTS[p.port]}</span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-2 font-mono text-xs text-muted-foreground">{p.address}</td>
+                      <td className="px-4 py-2 hidden sm:table-cell">
+                        {p.process ? (
+                          <span className="text-xs font-mono">
+                            {p.process}
+                            {p.pid != null && (
+                              <span className="text-muted-foreground ml-1">({p.pid})</span>
+                            )}
+                          </span>
+                        ) : (
+                          <span className="text-xs text-muted-foreground">—</span>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
 
 function SignalBars({ percent }: { percent: number }) {
   const bars = 4;
@@ -164,6 +287,10 @@ export default function NetworkPage() {
           <TabsTrigger value="client">
             <Wifi className="w-3.5 h-3.5 mr-1.5" />
             Internet Network (wlan1)
+          </TabsTrigger>
+          <TabsTrigger value="ports">
+            <Network className="w-3.5 h-3.5 mr-1.5" />
+            Open Ports
           </TabsTrigger>
         </TabsList>
 
@@ -446,6 +573,11 @@ export default function NetworkPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Gift 6: Open ports tab */}
+        <TabsContent value="ports">
+          <OpenPortsTab />
         </TabsContent>
       </Tabs>
     </div>

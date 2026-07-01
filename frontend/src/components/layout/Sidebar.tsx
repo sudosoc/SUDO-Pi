@@ -4,12 +4,14 @@ import {
   Cpu, FileText, FolderOpen, GitBranch,
   Home, Package, Settings,
   Shield, Terminal, Users, Wifi, Zap, LogOut, MonitorSmartphone,
-  Network, Flame, Clock, KeyRound, Activity, Bell, HardDrive, Gauge, Monitor,
+  Network, Flame, Clock, KeyRound, Activity, Bell, HardDrive,
+  Monitor, Server,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { authApi } from "@/api/auth";
 import { Button } from "@/components/ui/button";
+import { useSystemStore } from "@/stores/systemStore";
 
 interface NavItem {
   to: string;
@@ -19,34 +21,85 @@ interface NavItem {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { to: "/", icon: Home, label: "Dashboard" },
-  { to: "/system", icon: Cpu, label: "System" },
-  { to: "/terminal", icon: Terminal, label: "Terminal", roles: ["admin", "operator"] },
-  { to: "/files", icon: FolderOpen, label: "Files", roles: ["admin", "operator"] },
-  { to: "/network", icon: Wifi, label: "Network" },
-  { to: "/packages", icon: Package, label: "Packages", roles: ["admin", "operator"] },
-  { to: "/docker", icon: Box, label: "Docker", roles: ["admin", "operator"] },
-  { to: "/bluetooth", icon: Bluetooth, label: "Bluetooth" },
-  { to: "/gpio", icon: GitBranch, label: "GPIO", roles: ["admin", "operator"] },
-  { to: "/devices", icon: MonitorSmartphone, label: "Devices" },
-  { to: "/logs", icon: FileText, label: "Logs" },
-  { to: "/vpn", icon: Network, label: "VPN", roles: ["admin", "operator"] },
-  { to: "/firewall", icon: Flame, label: "Firewall", roles: ["admin"] },
-  { to: "/cron", icon: Clock, label: "Cron Jobs", roles: ["admin", "operator"] },
-  { to: "/ssh", icon: KeyRound, label: "SSH", roles: ["admin"] },
-  { to: "/metrics", icon: Activity, label: "Metrics" },
-  { to: "/alerts", icon: Bell, label: "Alerts", roles: ["admin"] },
-  { to: "/storage", icon: HardDrive, label: "Storage" },
-  { to: "/speedtest", icon: Gauge, label: "Speed Test" },
-  { to: "/display", icon: Monitor, label: "Display", roles: ["admin", "operator"] },
-  { to: "/users", icon: Users, label: "Users", roles: ["admin"] },
-  { to: "/security", icon: Shield, label: "Security", roles: ["admin"] },
-  { to: "/settings", icon: Settings, label: "Settings", roles: ["admin"] },
+  { to: "/",           icon: Home,            label: "Dashboard" },
+  { to: "/system",     icon: Cpu,             label: "System" },
+  { to: "/processes",  icon: Server,          label: "Processes" },
+  { to: "/terminal",   icon: Terminal,        label: "Terminal",   roles: ["admin", "operator"] },
+  { to: "/files",      icon: FolderOpen,      label: "Files",      roles: ["admin", "operator"] },
+  { to: "/network",    icon: Wifi,            label: "Network" },
+  { to: "/packages",   icon: Package,         label: "Packages",   roles: ["admin", "operator"] },
+  { to: "/docker",     icon: Box,             label: "Docker",     roles: ["admin", "operator"] },
+  { to: "/bluetooth",  icon: Bluetooth,       label: "Bluetooth" },
+  { to: "/gpio",       icon: GitBranch,       label: "GPIO",       roles: ["admin", "operator"] },
+  { to: "/devices",    icon: MonitorSmartphone, label: "Devices" },
+  { to: "/logs",       icon: FileText,        label: "Logs" },
+  { to: "/vpn",        icon: Network,         label: "VPN",        roles: ["admin", "operator"] },
+  { to: "/firewall",   icon: Flame,           label: "Firewall",   roles: ["admin"] },
+  { to: "/cron",       icon: Clock,           label: "Cron Jobs",  roles: ["admin", "operator"] },
+  { to: "/ssh",        icon: KeyRound,        label: "SSH",        roles: ["admin"] },
+  { to: "/metrics",    icon: Activity,        label: "Metrics" },
+  { to: "/alerts",     icon: Bell,            label: "Alerts",     roles: ["admin"] },
+  { to: "/storage",    icon: HardDrive,       label: "Storage" },
+  { to: "/display",    icon: Monitor,         label: "Display",    roles: ["admin", "operator"] },
+  { to: "/users",      icon: Users,           label: "Users",      roles: ["admin"] },
+  { to: "/security",   icon: Shield,          label: "Security",   roles: ["admin"] },
+  { to: "/settings",   icon: Settings,        label: "Settings",   roles: ["admin"] },
 ];
 
 interface SidebarProps {
   collapsed: boolean;
   onToggle: () => void;
+}
+
+// ─── Live mini stats bar shown in sidebar footer ──────────────────────────────
+function SidebarLiveStats({ collapsed }: { collapsed: boolean }) {
+  const { stats } = useSystemStore();
+  if (!stats) return null;
+
+  const cpu  = stats.cpu.percent;
+  const ram  = stats.memory.percent;
+  const temp = stats.temperature.cpu;
+
+  const cpuColor  = cpu  > 80 ? "text-red-400"    : cpu  > 50 ? "text-yellow-400" : "text-green-400";
+  const ramColor  = ram  > 85 ? "text-red-400"    : ram  > 65 ? "text-yellow-400" : "text-blue-400";
+  const tempColor = temp ? (temp > 70 ? "text-red-400" : temp > 55 ? "text-yellow-400" : "text-cyan-400") : "text-muted-foreground";
+
+  if (collapsed) {
+    return (
+      <div className="flex flex-col items-center gap-1.5 px-2 py-2 border-t border-border/50">
+        <span className={cn("text-[10px] font-bold tabular-nums leading-none", cpuColor)}>
+          {cpu.toFixed(0)}%
+        </span>
+        <span className={cn("text-[10px] font-bold tabular-nums leading-none", ramColor)}>
+          {ram.toFixed(0)}%
+        </span>
+        {temp != null && (
+          <span className={cn("text-[10px] font-bold tabular-nums leading-none", tempColor)}>
+            {temp.toFixed(0)}°
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="px-3 py-2 border-t border-border/50 grid grid-cols-3 gap-1 text-center">
+      <div>
+        <p className={cn("text-xs font-bold tabular-nums", cpuColor)}>{cpu.toFixed(0)}%</p>
+        <p className="text-[10px] text-muted-foreground">CPU</p>
+      </div>
+      <div>
+        <p className={cn("text-xs font-bold tabular-nums", ramColor)}>{ram.toFixed(0)}%</p>
+        <p className="text-[10px] text-muted-foreground">RAM</p>
+      </div>
+      <div>
+        <p className={cn("text-xs font-bold tabular-nums", tempColor)}>
+          {temp != null ? `${temp.toFixed(0)}°` : "—"}
+        </p>
+        <p className="text-[10px] text-muted-foreground">Temp</p>
+      </div>
+    </div>
+  );
 }
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
@@ -73,6 +126,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         collapsed ? "w-16" : "w-60"
       )}
     >
+      {/* Logo */}
       <div className="flex items-center justify-between h-14 px-4 border-b border-border shrink-0">
         {!collapsed && (
           <div className="flex items-center gap-2">
@@ -100,6 +154,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         </Button>
       )}
 
+      {/* Nav */}
       <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
         {visibleItems.map((item) => {
           const Icon = item.icon;
@@ -126,6 +181,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         })}
       </nav>
 
+      {/* Live stats (Gift 4) */}
+      <SidebarLiveStats collapsed={collapsed} />
+
+      {/* User + logout */}
       <div className="border-t border-border p-2">
         {!collapsed && user && (
           <div className="px-3 py-2 mb-1">
