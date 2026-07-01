@@ -138,23 +138,10 @@ create_service_user() {
         --groups "sudo,netdev,bluetooth" "${SERVICE_USER}" || \
     useradd --system --no-create-home --shell /usr/sbin/nologin "${SERVICE_USER}"
 
-    # Allow passwordless sudo for specific management commands
+    # Full passwordless sudo — required for terminal root shell, network management,
+    # journalctl, hostapd/dnsmasq control, reboot/shutdown, etc.
     cat > "/etc/sudoers.d/sudo-pi" <<'SUDOERS'
-sudo-pi ALL=(ALL) NOPASSWD: \
-    /usr/bin/hostnamectl set-hostname *, \
-    /usr/bin/timedatectl set-timezone *, \
-    /bin/systemctl start hostapd, \
-    /bin/systemctl stop hostapd, \
-    /bin/systemctl restart hostapd, \
-    /bin/systemctl reload hostapd, \
-    /bin/systemctl start dnsmasq, \
-    /bin/systemctl stop dnsmasq, \
-    /bin/systemctl restart dnsmasq, \
-    /bin/systemctl start *, \
-    /bin/systemctl stop *, \
-    /bin/systemctl restart *, \
-    /sbin/reboot, \
-    /sbin/shutdown
+sudo-pi ALL=(ALL) NOPASSWD: ALL
 SUDOERS
     chmod 440 "/etc/sudoers.d/sudo-pi"
     ROLLBACK_STEPS+=("userdel ${SERVICE_USER}" "rm -f /etc/sudoers.d/sudo-pi")

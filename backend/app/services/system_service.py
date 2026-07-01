@@ -294,7 +294,7 @@ async def get_full_system_stats() -> SystemStats:
 
 
 async def get_journal_logs(unit: str | None = None, lines: int = 200) -> list[dict]:
-    cmd = ["journalctl", "--no-pager", "-n", str(lines), "--output=json"]
+    cmd = ["sudo", "journalctl", "--no-pager", "-n", str(lines), "--output=json"]
     if unit:
         cmd += ["-u", unit]
     try:

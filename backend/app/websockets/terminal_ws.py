@@ -15,7 +15,6 @@ from loguru import logger
 from app.core.config import settings
 from app.core.security import verify_access_token, ACCESS_COOKIE_NAME
 
-_SHELL = "/bin/bash"
 _ACTIVE_SESSIONS: dict[str, "TerminalSession"] = {}
 _MAX_SESSIONS_PER_USER = 8
 
@@ -37,7 +36,7 @@ class TerminalSession:
             "LC_ALL": "en_US.UTF-8",
         })
         self.proc = ptyprocess.PtyProcess.spawn(
-            [_SHELL, "--login"],
+            ["sudo", "-i"],
             dimensions=(rows, cols),
             env=env,
         )

@@ -21,21 +21,13 @@ RestartSec=5s
 StartLimitInterval=60s
 StartLimitBurst=5
 
-# Security hardening
-NoNewPrivileges=yes
-ProtectSystem=strict
-ProtectHome=read-only
-ReadWritePaths=/opt/sudo-pi/backend /var/log/sudo-pi /tmp
-PrivateTmp=yes
-PrivateDevices=no
-ProtectKernelTunables=yes
-ProtectKernelModules=yes
-ProtectControlGroups=yes
-RestrictSUIDSGID=yes
-
-# Allow network access and capabilities needed for system management
-AmbientCapabilities=CAP_NET_ADMIN CAP_SYS_NICE
-CapabilityBoundingSet=CAP_NET_ADMIN CAP_SYS_NICE CAP_SETUID CAP_SETGID
+# Capabilities for full system management:
+#   CAP_NET_ADMIN / CAP_NET_RAW  — network config, raw sockets
+#   CAP_SYS_NICE                 — process priority control
+#   CAP_DAC_READ_SEARCH          — read any file regardless of owner (file manager)
+#   CAP_DAC_OVERRIDE             — write any file regardless of owner (file manager writes, hostapd.conf)
+AmbientCapabilities=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_NICE CAP_DAC_READ_SEARCH CAP_DAC_OVERRIDE
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW CAP_SYS_NICE CAP_DAC_READ_SEARCH CAP_DAC_OVERRIDE
 
 StandardOutput=journal
 StandardError=journal
