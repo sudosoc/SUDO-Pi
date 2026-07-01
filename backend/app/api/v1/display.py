@@ -55,9 +55,12 @@ async def get_display_status(_: ActiveUser) -> dict:
         })
 
     return {
-        "displays":      normalized_displays,
-        "hdmi_power":    raw.get("display_on", True),
-        "gpu_memory_mb": gpu_mb,
+        "displays":         normalized_displays,
+        "hdmi_power":       raw.get("display_on", True),
+        "gpu_memory_mb":    gpu_mb,
+        "tvservice_mode":   raw.get("mode"),
+        "hdmi_connected":   raw.get("hdmi_connected", False),
+        "xrandr_available": raw.get("xrandr_available", False),
     }
 
 

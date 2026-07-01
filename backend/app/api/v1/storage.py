@@ -44,6 +44,11 @@ async def get_disk_usage(_: ActiveUser) -> list[dict]:
     return await storage_service.get_disk_usage()
 
 
+@router.get("/io-stats")
+async def get_io_stats(_: ActiveUser) -> list[dict]:
+    return await storage_service.get_io_stats()
+
+
 @router.post("/mount", dependencies=[CsrfVerified])
 async def mount_device(body: MountRequest, _: AdminUser) -> dict:
     success, error = await storage_service.mount_device(

@@ -251,9 +251,9 @@ async def format_device(
 
 
 async def get_disk_usage() -> list[dict]:
-    """Return disk usage for real filesystems via df."""
+    """Return disk usage for real filesystems via df, including filesystem type."""
     code, out, err = await _run(
-        ["df", "-B1", "--output=source,size,used,avail,pcent,target"],
+        ["df", "-B1", "--output=source,fstype,size,used,avail,pcent,target"],
         timeout=10.0,
     )
     if code != 0:
@@ -265,10 +265,10 @@ async def get_disk_usage() -> list[dict]:
 
     for line in lines[1:]:  # skip header
         parts = line.split()
-        if len(parts) < 6:
+        if len(parts) < 7:
             continue
-        device, size, used, avail, pcent, target = (
-            parts[0], parts[1], parts[2], parts[3], parts[4], parts[5]
+        device, fstype_val, size, used, avail, pcent, target = (
+            parts[0], parts[1], parts[2], parts[3], parts[4], parts[5], parts[6]
         )
 
         # Skip virtual/pseudo filesystems
@@ -285,14 +285,49 @@ async def get_disk_usage() -> list[dict]:
 
         results.append(
             {
-                "device": device,
-                "size_bytes": size_bytes,
-                "used_bytes": used_bytes,
+                "device":      device,
+                "fstype":      fstype_val,
+                "size_bytes":  size_bytes,
+                "used_bytes":  used_bytes,
                 "avail_bytes": avail_bytes,
-                "percent": percent,
-                "mountpoint": target,
+                "percent":     percent,
+                "mountpoint":  target,
             }
         )
+
+    return results
+
+
+async def get_io_stats() -> list[dict]:
+    """Read /proc/diskstats — cumulative I/O counters since boot per block device."""
+    try:
+        with open("/proc/diskstats") as f:
+            raw = f.readlines()
+    except Exception as exc:
+        logger.warning("Could not read /proc/diskstats: {}", exc)
+        return []
+
+    results: list[dict] = []
+    for line in raw:
+        parts = line.split()
+        if len(parts) < 14:
+            continue
+        device = parts[2]
+        # Skip partitions (end with digit), loop, ram, zram
+        if re.match(r"(loop|ram|zram)", device) or device[-1].isdigit():
+            continue
+        try:
+            results.append({
+                "device":          device,
+                "reads_completed": int(parts[3]),
+                "reads_bytes":     int(parts[5]) * 512,
+                "writes_completed": int(parts[7]),
+                "writes_bytes":    int(parts[9]) * 512,
+                "io_in_progress":  int(parts[11]),
+                "io_time_ms":      int(parts[12]),
+            })
+        except (ValueError, IndexError):
+            continue
 
     return results
 
