@@ -80,10 +80,11 @@ check_interfaces() {
 # ─── System update and package installation ──────────────────────────────────
 install_system_packages() {
     info "Updating package index..."
-    apt-get update -qq
+    apt-get -o Acquire::ForceIPv4=true update -qq
 
     info "Installing system dependencies..."
-    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+    DEBIAN_FRONTEND=noninteractive apt-get -o Acquire::ForceIPv4=true \
+        install -y --no-install-recommends --fix-missing \
         python3 python3-dev python3-pip python3-venv python3-full \
         nginx \
         hostapd \
@@ -103,11 +104,9 @@ install_system_packages() {
         python3-dbus \
         libssl-dev \
         libffi-dev \
-        build-essential \
-        nodejs \
-        npm
+        build-essential
 
-    success "System packages installed"
+    success "System packages installed (nodejs/npm installed separately via NodeSource)"
 }
 
 # ─── Node.js LTS via nvm-style installer ─────────────────────────────────────
@@ -123,7 +122,7 @@ install_nodejs() {
 
     info "Installing Node.js ${required_major}.x..."
     curl -fsSL "https://deb.nodesource.com/setup_${required_major}.x" | bash -
-    apt-get install -y nodejs
+    apt-get -o Acquire::ForceIPv4=true install -y nodejs
     success "Node.js $(node --version) installed"
 }
 
