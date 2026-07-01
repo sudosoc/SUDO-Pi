@@ -166,7 +166,7 @@ export default function SpeedTestPage() {
     onError: (err: { response?: { data?: { detail?: string } } }) => {
       toast({
         title: "Speed test failed",
-        description: err?.response?.data?.detail ?? "Could not run test. Is speedtest-cli installed?",
+        description: err?.response?.data?.detail ?? "Could not connect to speed test servers. Check internet connection.",
         variant: "destructive",
       } as { title: string; description: string; variant: "destructive" });
     },
@@ -219,8 +219,8 @@ export default function SpeedTestPage() {
             </Button>
 
             <p className="text-xs text-muted-foreground text-center max-w-xs">
-              Requires <span className="font-mono text-foreground">speedtest-cli</span> to be installed on the Raspberry Pi.
-              Test takes ~30 seconds.
+              Tests against Cloudflare's speed test servers.
+              Downloads 10 MB · Uploads 5 MB · ~30 seconds total.
             </p>
           </div>
         </CardContent>

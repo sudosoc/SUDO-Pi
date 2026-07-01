@@ -27,6 +27,7 @@ const AlertsPage      = lazy(() => import("@/pages/AlertsPage"));
 const StoragePage     = lazy(() => import("@/pages/StoragePage"));
 const DisplayPage     = lazy(() => import("@/pages/DisplayPage"));
 const ProcessPage     = lazy(() => import("@/pages/ProcessPage"));
+const SpeedTestPage   = lazy(() => import("@/pages/SpeedTestPage"));
 
 function ProtectedLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -73,6 +74,7 @@ export default function App() {
           <Route path="/storage"    element={<StoragePage />} />
           <Route path="/display"    element={<DisplayPage />} />
           <Route path="/processes"  element={<ProcessPage />} />
+          <Route path="/speedtest"  element={<SpeedTestPage />} />
           <Route element={<AdminGuard />}>
             <Route path="/users"    element={<UsersPage />} />
             <Route path="/security" element={<SecurityPage />} />

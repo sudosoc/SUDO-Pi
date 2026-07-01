@@ -5,7 +5,7 @@ import {
   Home, Package, Settings,
   Shield, Terminal, Users, Wifi, Zap, LogOut, MonitorSmartphone,
   Network, Flame, Clock, KeyRound, Activity, Bell, HardDrive,
-  Monitor, Server,
+  Monitor, Server, Gauge,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -38,6 +38,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/cron",       icon: Clock,           label: "Cron Jobs",  roles: ["admin", "operator"] },
   { to: "/ssh",        icon: KeyRound,        label: "SSH",        roles: ["admin"] },
   { to: "/metrics",    icon: Activity,        label: "Metrics" },
+  { to: "/speedtest",  icon: Gauge,           label: "Speed Test" },
   { to: "/alerts",     icon: Bell,            label: "Alerts",     roles: ["admin"] },
   { to: "/storage",    icon: HardDrive,       label: "Storage" },
   { to: "/display",    icon: Monitor,         label: "Display",    roles: ["admin", "operator"] },

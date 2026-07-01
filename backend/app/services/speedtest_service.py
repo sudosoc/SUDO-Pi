@@ -1,72 +1,126 @@
 from __future__ import annotations
 
-import asyncio
-import json
+import os
 import time
+from datetime import datetime, timezone
 
+import httpx
 from loguru import logger
 
 # Results stored in memory (last 20 results)
 _history: list[dict] = []
 
+_CF_BASE = "https://speed.cloudflare.com"
+_DOWNLOAD_SIZE = 10 * 1024 * 1024   # 10 MB
+_UPLOAD_SIZE   = 5  * 1024 * 1024   #  5 MB
+_PING_COUNT    = 5
 
-async def _run(cmd: list[str], timeout: float = 10.0) -> tuple[int, str, str]:
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
+
+async def _fetch_meta(client: httpx.AsyncClient) -> dict:
+    """Get ISP / location info from Cloudflare meta endpoint."""
     try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        proc.kill()
-        return -1, "", "timeout"
-    return proc.returncode or 0, stdout.decode(errors="replace"), stderr.decode(errors="replace")
+        resp = await client.get(f"{_CF_BASE}/meta", timeout=8.0)
+        resp.raise_for_status()
+        return resp.json()
+    except Exception:
+        return {}
+
+
+async def _measure_latency(client: httpx.AsyncClient) -> float:
+    """Send _PING_COUNT HEAD requests and return average RTT in milliseconds."""
+    times: list[float] = []
+    for _ in range(_PING_COUNT):
+        try:
+            start = time.monotonic()
+            await client.head(f"{_CF_BASE}/__down?bytes=0", timeout=5.0)
+            times.append((time.monotonic() - start) * 1000)
+        except Exception:
+            pass
+    if not times:
+        return 0.0
+    # Drop the highest outlier, average the rest
+    times.sort()
+    trimmed = times[:-1] if len(times) > 2 else times
+    return round(sum(trimmed) / len(trimmed), 1)
+
+
+async def _measure_download(client: httpx.AsyncClient) -> tuple[float, int]:
+    """Stream _DOWNLOAD_SIZE bytes from Cloudflare, return (bytes_per_sec, bytes_received)."""
+    try:
+        start = time.monotonic()
+        total = 0
+        async with client.stream(
+            "GET",
+            f"{_CF_BASE}/__down?bytes={_DOWNLOAD_SIZE}",
+            timeout=httpx.Timeout(5.0, read=60.0),
+        ) as resp:
+            resp.raise_for_status()
+            async for chunk in resp.aiter_bytes(65536):
+                total += len(chunk)
+        elapsed = time.monotonic() - start
+        bps = total / elapsed if elapsed > 0 else 0.0
+        logger.debug("Download: {:.2f} Mbps ({} bytes in {:.1f}s)", bps / 1e6, total, elapsed)
+        return bps, total
+    except Exception as exc:
+        logger.warning("Download measurement failed: {}", exc)
+        return 0.0, 0
+
+
+async def _measure_upload(client: httpx.AsyncClient) -> tuple[float, int]:
+    """POST _UPLOAD_SIZE random bytes to Cloudflare, return (bytes_per_sec, bytes_sent)."""
+    try:
+        payload = os.urandom(_UPLOAD_SIZE)
+        start   = time.monotonic()
+        resp = await client.post(
+            f"{_CF_BASE}/__up",
+            content=payload,
+            headers={"Content-Type": "application/octet-stream"},
+            timeout=httpx.Timeout(5.0, write=60.0, read=10.0),
+        )
+        resp.raise_for_status()
+        elapsed = time.monotonic() - start
+        bps = len(payload) / elapsed if elapsed > 0 else 0.0
+        logger.debug("Upload: {:.2f} Mbps ({} bytes in {:.1f}s)", bps / 1e6, len(payload), elapsed)
+        return bps, len(payload)
+    except Exception as exc:
+        logger.warning("Upload measurement failed: {}", exc)
+        return 0.0, 0
 
 
 async def run_speedtest() -> dict:
-    """Run speedtest-cli --json. Install if not present. Returns speed result dict."""
-    # Check if speedtest-cli is installed
-    code, out, _ = await _run(["which", "speedtest-cli"], timeout=5.0)
-    if code != 0:
-        logger.info("speedtest-cli not found, installing via venv pip...")
-        install_code, _, install_err = await _run(
-            ["/opt/sudo-pi/venv/bin/pip", "install", "speedtest-cli"],
-            timeout=120.0,
-        )
-        if install_code != 0:
-            raise RuntimeError(f"speedtest-cli not installed and install failed: {install_err.strip()}")
-        logger.info("speedtest-cli installed successfully")
+    """
+    Run a full speed test using Cloudflare's public endpoints.
+    No external CLI tools required — uses httpx which is already installed.
+    """
+    started_at = time.time()
+    logger.info("Speed test starting (Cloudflare endpoints)")
 
-    start = time.time()
-    code, out, err = await _run(
-        ["speedtest-cli", "--json", "--secure"], timeout=120.0
-    )
-    if code != 0:
-        raise RuntimeError(f"speedtest-cli failed: {err.strip() or 'unknown error'}")
+    async with httpx.AsyncClient(
+        follow_redirects=True,
+        headers={"User-Agent": "sudo-pi-speedtest/1.0"},
+    ) as client:
+        # Run sequentially: latency → download → upload
+        ping_ms                     = await _measure_latency(client)
+        download_bps, bytes_recv    = await _measure_download(client)
+        upload_bps,   bytes_sent    = await _measure_upload(client)
+        meta                        = await _fetch_meta(client)
 
-    try:
-        data = json.loads(out)
-    except json.JSONDecodeError as exc:
-        raise RuntimeError(f"Failed to parse speedtest output: {exc}") from exc
-
-    server = data.get("server", {})
-    client = data.get("client", {})
-    location_parts = filter(None, [server.get("name"), server.get("country")])
+    isp      = meta.get("asOrganization") or "Unknown"
+    colo     = meta.get("colo", "")
+    location = f"Cloudflare {colo}" if colo else "Cloudflare CDN"
 
     result = {
-        # download / upload in raw bits/s so frontend formatMbps(bps) works correctly
-        "download":        data["download"],
-        "upload":          data["upload"],
-        "ping":            round(data["ping"], 1),
-        "server_name":     server.get("sponsor", server.get("name", "Unknown")),
-        "server_location": ", ".join(location_parts) or "Unknown",
-        "isp":             client.get("isp"),
-        "share_url":       data.get("share"),
-        "bytes_sent":      data.get("bytes_sent", 0),
-        "bytes_received":  data.get("bytes_received", 0),
-        "timestamp":       data.get("timestamp", ""),
-        "duration_seconds": round(time.time() - start, 1),
+        "download":         download_bps,
+        "upload":           upload_bps,
+        "ping":             ping_ms,
+        "server_name":      "Cloudflare Speed Test",
+        "server_location":  location,
+        "isp":              isp,
+        "share_url":        None,
+        "bytes_sent":       bytes_sent,
+        "bytes_received":   bytes_recv,
+        "timestamp":        datetime.now(timezone.utc).isoformat(),
+        "duration_seconds": round(time.time() - started_at, 1),
     }
 
     _history.insert(0, result)
@@ -74,10 +128,11 @@ async def run_speedtest() -> dict:
         _history.pop()
 
     logger.info(
-        "Speedtest complete: {:.1f} Mbps down / {:.1f} Mbps up / {:.0f} ms ping",
-        result["download"] / 1_000_000,
-        result["upload"] / 1_000_000,
-        result["ping"],
+        "Speed test done: {:.1f} Mbps ↓ / {:.1f} Mbps ↑ / {:.0f} ms ping ({}s total)",
+        download_bps / 1e6,
+        upload_bps / 1e6,
+        ping_ms,
+        result["duration_seconds"],
     )
     return result
 

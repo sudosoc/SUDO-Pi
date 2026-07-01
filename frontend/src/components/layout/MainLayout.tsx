@@ -32,6 +32,7 @@ const ROUTE_TITLES: Record<string, string> = {
   "/cron":       "Cron Job Manager",
   "/ssh":        "SSH Manager",
   "/metrics":    "Performance Metrics",
+  "/speedtest":  "Speed Test",
   "/alerts":     "Alert System",
   "/storage":    "Storage Manager",
   "/display":    "Display Manager",
