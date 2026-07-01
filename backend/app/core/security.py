@@ -5,16 +5,12 @@ import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import bcrypt as _bcrypt_lib
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 
 from app.core.config import settings
 
-pwd_context = CryptContext(
-    schemes=["bcrypt"],
-    deprecated="auto",
-    bcrypt__rounds=12,
-)
+BCRYPT_ROUNDS = 12
 
 CSRF_COOKIE_NAME = "csrf_token"
 ACCESS_COOKIE_NAME = "access_token"
@@ -24,19 +20,17 @@ TOKEN_TYPE_ACCESS = "access"
 TOKEN_TYPE_REFRESH = "refresh"
 
 
-def _truncate_for_bcrypt(password: str) -> str:
-    encoded = password.encode("utf-8")
-    if len(encoded) <= 72:
-        return password
-    return encoded[:72].decode("utf-8", errors="ignore")
+def _password_bytes(password: str) -> bytes:
+    # bcrypt hard limit is 72 bytes; slice at the byte boundary
+    return password.encode("utf-8")[:72]
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(_truncate_for_bcrypt(password))
+    return _bcrypt_lib.hashpw(_password_bytes(password), _bcrypt_lib.gensalt(rounds=BCRYPT_ROUNDS)).decode("utf-8")
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(_truncate_for_bcrypt(plain), hashed)
+    return _bcrypt_lib.checkpw(_password_bytes(plain), hashed.encode("utf-8"))
 
 
 def _utcnow() -> datetime:
