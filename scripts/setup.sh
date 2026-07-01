@@ -91,7 +91,6 @@ install_system_packages() {
         network-manager \
         avahi-daemon \
         avahi-utils \
-        nss-mdns \
         libnss-mdns \
         curl \
         git \
