@@ -28,7 +28,7 @@ A comprehensive headless management dashboard for Raspberry Pi 5. Control your P
 ## Quick Start
 
 ```bash
-git clone https://github.com/youruser/sudo-pi.git
+git clone https://github.com/sudosoc/sudo-pi.git
 cd sudo-pi
 sudo bash scripts/setup.sh
 ```
