@@ -83,7 +83,6 @@ const vpnApi = {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-// Gift 5 — enriched VPN status banner with live tunnel summary
 function VpnIpBanner({
   vpnIp,
   wgTunnels,

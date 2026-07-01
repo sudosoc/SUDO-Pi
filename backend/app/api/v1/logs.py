@@ -11,9 +11,6 @@ from app.services.audit_service import AuditService
 router = APIRouter(prefix="/logs", tags=["Logs"])
 
 
-class AuditLogResponse:
-    pass
-
 
 @router.get("/audit")
 async def get_audit_logs(

@@ -50,6 +50,15 @@ export default function GpioPage() {
     onSuccess: () => refetch(),
   });
 
+  const setPwmMutation = useMutation({
+    mutationFn: ({ gpio, freq, duty }: { gpio: number; freq: number; duty: number }) =>
+      apiClient.post(`/gpio/pins/${gpio}/pwm`, { frequency: freq, duty_cycle: duty }),
+    onSuccess: () => refetch(),
+  });
+
+  const [pwmFreq, setPwmFreq] = useState(1000);
+  const [pwmDuty, setPwmDuty] = useState(50);
+
 
   return (
     <div className="p-6 space-y-6">
@@ -197,6 +206,66 @@ export default function GpioPage() {
                     <span className={selectedPin.value ? "text-success font-bold" : "text-muted-foreground"}>
                       {selectedPin.value ? "HIGH (1)" : "LOW (0)"}
                     </span>
+                  </div>
+                )}
+
+                {/* PWM mode controls */}
+                {selectedPin.mode === "PWM" && (
+                  <div className="space-y-3">
+                    {selectedPin.pwm_freq != null && (
+                      <div className="p-3 rounded bg-secondary/30 text-xs text-muted-foreground grid grid-cols-2 gap-2">
+                        <span>Frequency: <strong className="text-warning">{selectedPin.pwm_freq} Hz</strong></span>
+                        <span>Duty Cycle: <strong className="text-warning">{selectedPin.pwm_duty}%</strong></span>
+                      </div>
+                    )}
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Frequency (Hz)</p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range" min={1} max={100000} step={100}
+                          value={pwmFreq}
+                          onChange={(e) => setPwmFreq(Number(e.target.value))}
+                          className="flex-1 accent-warning"
+                        />
+                        <span className="text-xs font-mono w-20 text-right">{pwmFreq.toLocaleString()} Hz</span>
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs text-muted-foreground mb-1">Duty Cycle (%)</p>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range" min={0} max={100} step={1}
+                          value={pwmDuty}
+                          onChange={(e) => setPwmDuty(Number(e.target.value))}
+                          className="flex-1 accent-warning"
+                        />
+                        <span className="text-xs font-mono w-12 text-right">{pwmDuty}%</span>
+                      </div>
+                      <div className="h-1.5 bg-secondary rounded-full mt-1 overflow-hidden">
+                        <div className="h-full bg-warning rounded-full transition-all" style={{ width: `${pwmDuty}%` }} />
+                      </div>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      onClick={() => setPwmMutation.mutate({ gpio: selectedPin.gpio, freq: pwmFreq, duty: pwmDuty })}
+                      loading={setPwmMutation.isPending}
+                    >
+                      Apply PWM
+                    </Button>
+                    <div className="flex gap-2 flex-wrap">
+                      {[{label:"25%",d:25},{label:"50%",d:50},{label:"75%",d:75},{label:"1kHz",d:pwmDuty,f:1000},{label:"10kHz",d:pwmDuty,f:10000}].map((p) => (
+                        <Button
+                          key={p.label} size="sm" variant="outline"
+                          className="text-[10px] h-6 px-2"
+                          onClick={() => {
+                            if (p.f) setPwmFreq(p.f); else setPwmDuty(p.d);
+                          }}
+                        >
+                          {p.label}
+                        </Button>
+                      ))}
+                    </div>
                   </div>
                 )}
               </div>

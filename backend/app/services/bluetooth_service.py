@@ -114,6 +114,18 @@ async def pair_device(mac: str) -> dict:
     return {"mac": mac, "status": "paired"}
 
 
+async def connect_device(mac: str) -> dict:
+    """Connect to an already-paired device without re-pairing."""
+    if not _validate_mac(mac):
+        raise ValueError("Invalid MAC address")
+    logger.info(f"Connecting to Bluetooth device: {mac}")
+    commands = f"connect {mac}\nquit\n"
+    code, out = await _bluetoothctl(input_text=commands, timeout=15.0)
+    if "Failed to connect" in out:
+        raise RuntimeError(f"Connection failed: {out.strip()}")
+    return {"mac": mac, "status": "connected"}
+
+
 async def disconnect_device(mac: str) -> dict:
     if not _validate_mac(mac):
         raise ValueError("Invalid MAC address")

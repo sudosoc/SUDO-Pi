@@ -9,7 +9,7 @@ export const networkApi = {
 
   updateAp: async (config: {
     ssid: string;
-    password: string;
+    password: string | null;
     channel: number;
     country_code: string;
     hide_ssid: boolean;

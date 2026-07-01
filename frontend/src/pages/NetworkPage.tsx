@@ -409,7 +409,13 @@ export default function NetworkPage() {
                 <div className="flex gap-2 mt-4">
                   <Button variant="outline" onClick={() => setApEdit(false)}>Cancel</Button>
                   <Button
-                    onClick={() => updateApMutation.mutate({ ...apForm, password: apForm.password || (apStatus?.config.ssid ?? "sudopi2024") })}
+                    onClick={() =>
+                      updateApMutation.mutate({
+                        ...apForm,
+                        // null tells the backend to keep the existing password
+                        password: apForm.password || null,
+                      })
+                    }
                     loading={updateApMutation.isPending}
                   >
                     <Save className="w-4 h-4 mr-1" /> Save & Restart AP

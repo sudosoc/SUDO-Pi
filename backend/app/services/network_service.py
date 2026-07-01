@@ -383,15 +383,24 @@ async def get_arp_table() -> list[dict]:
     return entries
 
 
-async def update_ap_config(ssid: str, password: str, channel: int, country: str, hide: bool, db: AsyncSession) -> bool:
+async def update_ap_config(ssid: str, password: str | None, channel: int, country: str, hide: bool, db: AsyncSession) -> bool:
+    repo = ApConfigRepository(db)
+    existing = await repo.get_current()
+
+    # If no new password supplied, keep the existing one
+    if not password:
+        if existing and existing.password:
+            password = existing.password
+        else:
+            logger.error("No password provided and no existing config to inherit from")
+            return False
+
     try:
         _write_hostapd_conf(ssid, password, channel, country, hide)
     except PermissionError:
         logger.error("Permission denied writing hostapd.conf — running as root?")
         return False
 
-    repo = ApConfigRepository(db)
-    existing = await repo.get_current()
     if existing:
         await repo.update(existing, ssid=ssid, password=password, channel=channel, country_code=country, hide_ssid=hide)
     else:

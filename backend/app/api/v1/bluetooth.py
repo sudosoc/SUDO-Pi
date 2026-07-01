@@ -49,7 +49,7 @@ async def pair_device(body: MacRequest, _: OperatorUser = None):
 @router.post("/connect", dependencies=[CsrfVerified])
 async def connect_device(body: MacRequest, _: OperatorUser = None):
     try:
-        return await bluetooth_service.pair_device(body.mac)
+        return await bluetooth_service.connect_device(body.mac)
     except ValueError as exc:
         raise HTTPException(400, str(exc))
     except RuntimeError as exc:

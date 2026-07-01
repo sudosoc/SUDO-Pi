@@ -9,7 +9,8 @@ from app.models.network import NetworkProfileSecurity
 
 class ApConfigUpdate(BaseModel):
     ssid: str = Field(..., min_length=1, max_length=32)
-    password: str = Field(..., min_length=8, max_length=63)
+    # None means "keep the existing password unchanged"
+    password: str | None = Field(None, min_length=8, max_length=63)
     channel: int = Field(6, ge=1, le=13)
     country_code: str = Field("EG", min_length=2, max_length=2)
     hide_ssid: bool = False
