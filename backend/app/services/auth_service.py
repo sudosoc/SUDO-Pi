@@ -14,7 +14,6 @@ from app.core.security import (
     verify_password,
     verify_access_token,
     verify_refresh_token,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
 )
 from app.core.config import settings
 from app.models.user import User, UserRole
