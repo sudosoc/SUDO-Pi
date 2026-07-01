@@ -132,8 +132,24 @@ function LineChart({
   tooltipFormatter?: (v: number) => string;
   hours: number; empty: boolean;
 }) {
+  // Filter out any NaN / null points that would break ECharts rendering
+  const cleanSeries = series.map((s) => ({
+    ...s,
+    data: s.data.filter(([t, v]) => t != null && v != null && isFinite(t) && isFinite(v)),
+  }));
+
   const option = {
     backgroundColor: "transparent",
+    // Top-level color palette so ECharts definitely picks up the right colors
+    color: cleanSeries.map((s) => s.color),
+    legend: {
+      show: cleanSeries.length > 1,
+      top: 4,
+      right: 8,
+      textStyle: { color: C.muted, fontSize: 10 },
+      itemWidth: 12,
+      itemHeight: 3,
+    },
     tooltip: {
       trigger: "axis",
       backgroundColor: "#1c1c1c",
@@ -145,38 +161,51 @@ function LineChart({
           const val = tooltipFormatter
             ? tooltipFormatter(p.value[1])
             : `${p.value[1].toFixed(1)}${yLabel}`;
-          const col = series.find((s) => s.name === p.seriesName)?.color ?? "#888";
+          const col = cleanSeries.find((s) => s.name === p.seriesName)?.color ?? "#888";
           return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:6px;"></span>${p.seriesName}: <b>${val}</b>`;
         });
         return `<div style="font-size:12px;line-height:1.6">${time}<br/>${lines.join("<br/>")}</div>`;
       },
     },
-    grid: { left: 52, right: 16, top: 16, bottom: 32 },
+    grid: {
+      left: 52,
+      right: 16,
+      top: cleanSeries.length > 1 ? 28 : 12,
+      bottom: 32,
+    },
     xAxis: {
       type: "time",
       axisLabel: { formatter: (v: number) => fmtTime(v), fontSize: 10, color: C.muted },
       splitLine: { show: false },
       axisLine: { lineStyle: { color: C.border } },
+      axisTick: { lineStyle: { color: C.border } },
     },
     yAxis: {
-      type: "value", min: yMin, max: yMax,
+      type: "value",
+      min: yMin,
+      max: yMax,
       axisLabel: { formatter: (v: number) => `${v}${yLabel}`, fontSize: 10, color: C.muted },
       splitLine: { lineStyle: { color: C.border, type: "dashed" } },
+      axisLine: { show: false },
+      axisTick: { show: false },
     },
-    series: series.map((s) => ({
+    series: cleanSeries.map((s) => ({
       name: s.name,
       type: "line",
-      smooth: true,
-      showSymbol: false,
+      smooth: false,
+      showSymbol: s.data.length <= 20,
+      symbolSize: 4,
+      symbol: "circle",
       data: s.data,
-      lineStyle: { color: s.color, width: 2 },
-      itemStyle: { color: s.color },
+      lineStyle: { color: s.color, width: 2.5 },
+      itemStyle: { color: s.color, borderWidth: 0 },
       areaStyle: {
         color: {
-          type: "linear", x: 0, y: 0, x2: 0, y2: 1,
+          type: "linear",
+          x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
-            { offset: 0, color: s.color + "44" },
-            { offset: 1, color: s.color + "00" },
+            { offset: 0, color: s.color + "55" },
+            { offset: 1, color: s.color + "05" },
           ],
         },
       },
@@ -192,7 +221,10 @@ function LineChart({
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
-        {empty ? <EmptyState /> : <ReactECharts option={option} style={{ height: 200 }} notMerge />}
+        {empty
+          ? <EmptyState />
+          : <ReactECharts option={option} style={{ height: 200 }} notMerge={true} />
+        }
       </CardContent>
     </Card>
   );
