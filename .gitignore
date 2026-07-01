@@ -34,6 +34,12 @@ node_modules/
 frontend/dist/
 frontend/.vite/
 .pnpm-store/
+frontend/tsconfig.*.tsbuildinfo
+frontend/vite.config.d.ts
+frontend/vite.config.js
+
+# Claude worktrees
+.claude/worktrees/
 
 # Test coverage
 .coverage
