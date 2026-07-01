@@ -4,7 +4,6 @@ import { FitAddon } from "@xterm/addon-fit";
 import { WebLinksAddon } from "@xterm/addon-web-links";
 import { Maximize2, Minimize2, Plus, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import "@xterm/xterm/css/xterm.css";
 
@@ -189,7 +188,7 @@ export default function TerminalPage() {
       return next;
     });
     if (activeTab === id) {
-      setActiveTab((prev) => {
+      setActiveTab(() => {
         const remaining = tabs.filter((t) => t.id !== id);
         return remaining[remaining.length - 1]?.id ?? "";
       });

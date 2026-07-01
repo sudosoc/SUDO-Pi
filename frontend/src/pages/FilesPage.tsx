@@ -2,8 +2,8 @@ import { useState, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   File, Folder, FolderOpen, Upload, Download, Trash2,
-  Edit3, Copy, Scissors, Plus, ChevronRight, Home,
-  Archive, MoreVertical, RefreshCw, Search,
+  Edit3, Plus, ChevronRight, Home,
+  Archive, RefreshCw, Search,
 } from "lucide-react";
 import { filesApi } from "@/api/files";
 import { Card, CardContent } from "@/components/ui/card";

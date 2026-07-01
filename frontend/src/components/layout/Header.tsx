@@ -1,7 +1,6 @@
 import { Bell, Wifi, WifiOff } from "lucide-react";
 import { useSystemStore } from "@/stores/systemStore";
 import { useNotificationStore } from "@/stores/notificationStore";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";

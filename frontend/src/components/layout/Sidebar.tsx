@@ -1,14 +1,13 @@
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  Activity, Bluetooth, Box, ChevronLeft, ChevronRight,
-  Cpu, FileText, FolderOpen, Gauge, GitBranch,
-  HardDrive, Home, Network, Package, Settings,
+  Bluetooth, Box, ChevronLeft, ChevronRight,
+  Cpu, FileText, FolderOpen, GitBranch,
+  Home, Package, Settings,
   Shield, Terminal, Users, Wifi, Zap, LogOut, MonitorSmartphone,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
 import { authApi } from "@/api/auth";
-import { useState } from "react";
 import { Button } from "@/components/ui/button";
 
 interface NavItem {

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,7 +29,7 @@ const PIN_COLORS: Record<string, string> = {
 export default function GpioPage() {
   const [selectedPin, setSelectedPin] = useState<GpioPin | null>(null);
 
-  const { data: pins, isLoading, refetch } = useQuery({
+  const { data: pins, refetch } = useQuery({
     queryKey: ["gpio-pins"],
     queryFn: async () => {
       const { data } = await apiClient.get("/gpio/pins");
@@ -49,13 +50,6 @@ export default function GpioPage() {
     onSuccess: () => refetch(),
   });
 
-  const setPwmMutation = useMutation({
-    mutationFn: ({ gpio, freq, duty }: { gpio: number; freq: number; duty: number }) =>
-      apiClient.post(`/gpio/pins/${gpio}/pwm`, { frequency: freq, duty_cycle: duty }),
-    onSuccess: () => refetch(),
-  });
-
-  const configurable = (pins ?? []).filter((p) => !["POWER", "GND"].includes(p.mode));
 
   return (
     <div className="p-6 space-y-6">

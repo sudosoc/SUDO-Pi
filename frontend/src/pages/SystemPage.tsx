@@ -1,11 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
 import ReactECharts from "echarts-for-react";
 import { useSystemStore } from "@/stores/systemStore";
-import { systemApi } from "@/api/system";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
-import { Separator } from "@/components/ui/separator";
 import { formatBytes, formatUptime } from "@/lib/utils";
 import { Activity, Cpu, HardDrive, Network, Server, Thermometer } from "lucide-react";
 

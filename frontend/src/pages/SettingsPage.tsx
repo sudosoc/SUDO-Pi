@@ -5,9 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Separator } from "@/components/ui/separator";
 import { toast } from "@/components/ui/use-toast";
-import { AlertTriangle, RefreshCw, Save, Server, Wifi } from "lucide-react";
+import { AlertTriangle, RefreshCw, Save, Server } from "lucide-react";
 
 export default function SettingsPage() {
   const { data: settings, isLoading, refetch } = useQuery({

@@ -35,7 +35,7 @@ export default defineConfig({
           react: ["react", "react-dom"],
           router: ["react-router-dom"],
           query: ["@tanstack/react-query"],
-          echarts: ["echarts-for-react", "apache-echarts"],
+          echarts: ["echarts-for-react", "echarts"],
           xterm: ["@xterm/xterm", "@xterm/addon-fit", "@xterm/addon-web-links"],
           ui: [
             "@radix-ui/react-dialog",

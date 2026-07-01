@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Wifi, WifiOff, Router, Signal, RefreshCw,
-  Trash2, Users, Lock, Unlock, Plus, Save,
+  Wifi, WifiOff, Router, RefreshCw,
+  Users, Lock, Unlock, Save,
 } from "lucide-react";
 import { networkApi } from "@/api/network";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +10,6 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Progress } from "@/components/ui/progress";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
@@ -102,7 +101,7 @@ export default function NetworkPage() {
     refetchInterval: 10000,
   });
 
-  const { data: wifiStatus, isLoading: wifiLoading, refetch: refetchWifi } = useQuery({
+  const { data: wifiStatus, isLoading: wifiLoading } = useQuery({
     queryKey: ["wifi-status"],
     queryFn: networkApi.getWifiStatus,
     refetchInterval: 5000,
@@ -114,7 +113,7 @@ export default function NetworkPage() {
     enabled: false,
   });
 
-  const { data: savedNetworks, refetch: refetchSaved } = useQuery({
+  const { data: savedNetworks } = useQuery({
     queryKey: ["saved-networks"],
     queryFn: networkApi.getSavedNetworks,
   });

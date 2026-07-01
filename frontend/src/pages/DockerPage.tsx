@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Play, Square, RefreshCw, Trash2, Terminal } from "lucide-react";
+import { Play, Square, RefreshCw, Trash2 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/use-toast";
-import { cn, formatBytes } from "@/lib/utils";
+import { formatBytes } from "@/lib/utils";
 
 export default function DockerPage() {
   const queryClient = useQueryClient();
@@ -32,7 +32,7 @@ export default function DockerPage() {
   const containerAction = useMutation({
     mutationFn: ({ id, action }: { id: string; action: string }) =>
       apiClient.post(`/docker/containers/${id}/${action}`),
-    onSuccess: (_, { action, id }) => {
+    onSuccess: (_, { action }) => {
       queryClient.invalidateQueries({ queryKey: ["docker-containers"] });
       toast({ title: `Container ${action}ed`, variant: "success" } as { title: string; variant: "success" });
     },

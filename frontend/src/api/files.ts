@@ -1,5 +1,5 @@
 import { apiClient } from "./client";
-import type { DirectoryListing, FileEntry } from "@/types";
+import type { DirectoryListing } from "@/types";
 
 export const filesApi = {
   listDirectory: async (path: string): Promise<DirectoryListing> => {

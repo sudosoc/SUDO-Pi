@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { MetricGauge } from "./MetricGauge";
 import { SparklineChart } from "./SparklineChart";
-import { formatBytes, formatUptime, getTemperatureColor, cpuColorClass } from "@/lib/utils";
+import { formatBytes, getTemperatureColor, cpuColorClass } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -28,7 +28,7 @@ export function SystemStats() {
     );
   }
 
-  const { cpu, memory, temperature, disks, uptime_seconds } = stats;
+  const { cpu, memory, temperature, disks } = stats;
   const primaryDisk = disks.find((d) => d.mountpoint === "/") ?? disks[0];
 
   return (

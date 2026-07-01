@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { SparklineChart } from "@/components/dashboard/SparklineChart";
 import { formatBytes, formatUptime } from "@/lib/utils";
-import { Activity, Clock, Server, Wifi } from "lucide-react";
+import { Activity, Clock, Wifi } from "lucide-react";
 
 export default function DashboardPage() {
   const { stats, wsConnected, lastUpdated, networkRxHistory, networkTxHistory } = useSystemStore();
