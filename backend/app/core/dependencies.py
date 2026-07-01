@@ -115,4 +115,4 @@ async def verify_csrf(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="CSRF token mismatch")
 
 
-CsrfVerified = Annotated[None, Depends(verify_csrf)]
+CsrfVerified = Depends(verify_csrf)
