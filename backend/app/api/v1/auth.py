@@ -11,7 +11,6 @@ from app.core.security import (
     REFRESH_COOKIE_NAME,
     clear_auth_cookies,
     set_auth_cookies,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
 )
 from app.schemas.auth import AuthResponse, ChangePasswordRequest, LoginRequest, RefreshResponse, UserInfoResponse
 from app.services.audit_service import AuditService
@@ -60,7 +59,7 @@ async def login(
 
     return AuthResponse(
         user=UserInfoResponse.model_validate(user),
-        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         csrf_token=csrf_token,
     )
 
@@ -87,7 +86,7 @@ async def refresh(
     set_auth_cookies(response, new_access, new_refresh, csrf_token, secure=secure)
 
     return RefreshResponse(
-        expires_in=ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        expires_in=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         csrf_token=csrf_token,
     )
 
