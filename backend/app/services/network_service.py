@@ -48,12 +48,22 @@ def _dbm_to_percent(dbm: int) -> int:
 
 async def scan_wifi(interface: str = None) -> list[WifiScanResult]:
     iface = interface or settings.INET_INTERFACE
+
+    # Trigger a fresh kernel scan; ignore errors (interface may already be scanning).
+    await _run(["sudo", "nmcli", "dev", "wifi", "rescan", "ifname", iface], timeout=5.0)
+
+    # -e no: disable nmcli's default colon-escaping inside field values so that
+    # BSSID arrives as plain AA:BB:CC:DD:EE:FF rather than AA\:BB\:CC\:DD\:EE\:FF.
+    # Without this flag, splitting the line on ":" puts backslash-suffixed hex
+    # fragments into the wrong positions and every try-int() on the BSSID byte
+    # raises ValueError → signal silently becomes 0 and frequency is corrupted.
     code, out, err = await _run(
-        ["sudo", "nmcli", "-t", "-f", "SSID,BSSID,SIGNAL,FREQ,SECURITY", "dev", "wifi", "list", "ifname", iface],
+        ["sudo", "nmcli", "-t", "-e", "no", "-f", "SSID,BSSID,SIGNAL,FREQ,SECURITY",
+         "dev", "wifi", "list", "ifname", iface],
         timeout=15.0,
     )
     if code != 0:
-        logger.warning("nmcli wifi scan failed: {}", err)
+        logger.warning("nmcli wifi scan failed on {}: {}", iface, err)
         return []
 
     results: list[WifiScanResult] = []
@@ -61,16 +71,24 @@ async def scan_wifi(interface: str = None) -> list[WifiScanResult]:
 
     for line in out.strip().splitlines():
         parts = line.split(":")
-        if len(parts) < 5:
+        # Layout after splitting: SSID_parts... AA BB CC DD EE FF SIGNAL FREQ SECURITY
+        # BSSID is always exactly 6 hex-byte fields.  Parse from the tail so that
+        # SSIDs containing ":" are reconstructed correctly by joining parts[:-9].
+        if len(parts) < 10:
             continue
-        ssid = parts[0].strip()
-        bssid = ":".join(parts[1:7]) if len(parts) >= 7 else parts[1]
+
+        security = parts[-1].strip() or "OPEN"
+        freq_str = parts[-2].strip()
         try:
-            signal = int(parts[-4]) if len(parts) >= 5 else 0
+            signal = int(parts[-3].strip())
         except ValueError:
             signal = 0
-        freq_str = parts[-3] if len(parts) >= 5 else "2437"
-        security = parts[-1].strip() if parts[-1].strip() else "OPEN"
+        bssid = ":".join(parts[-9:-3])
+        ssid = ":".join(parts[:-9]).strip()
+
+        if not ssid or ssid in seen_ssids:
+            continue
+        seen_ssids.add(ssid)
 
         try:
             freq_mhz = int(re.sub(r"[^\d]", "", freq_str))
@@ -80,10 +98,6 @@ async def scan_wifi(interface: str = None) -> list[WifiScanResult]:
         channel = max(1, (freq_mhz - 2407) // 5) if freq_mhz < 5000 else max(36, (freq_mhz - 5000) // 5)
         dbm = signal - 110 if signal > 0 else -90
         percent = _dbm_to_percent(dbm)
-
-        if not ssid or ssid in seen_ssids:
-            continue
-        seen_ssids.add(ssid)
 
         results.append(
             WifiScanResult(
