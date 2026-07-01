@@ -1,5 +1,3 @@
-from __future__ import annotations
-
 from fastapi import APIRouter, Cookie, HTTPException, Request, Response, status
 from loguru import logger
 from slowapi import Limiter
