@@ -62,7 +62,7 @@ async def update_user(user_id: int, body: UserUpdate, current_user: AdminUser, d
     return UserResponse.model_validate(user)
 
 
-@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, dependencies=[CsrfVerified])
+@router.delete("/{user_id}", status_code=status.HTTP_204_NO_CONTENT, response_model=None, dependencies=[CsrfVerified])
 async def delete_user(user_id: int, current_user: AdminUser, db: DBSession) -> None:
     audit = AuditService(db)
     service = UserService(db)
