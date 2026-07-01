@@ -9,7 +9,7 @@ Fixes applied to existing installations:
 - refresh_tokens: rename device_info -> user_agent (extend to 512 chars)
 - audit_logs: rename timestamp -> created_at; rename detail -> details; add user_agent
 - wifi_profiles: add password, is_saved, is_active, static_prefix, updated_at
-- ap_configs: create missing table entirely
+- ap_configs: create table if not exists (may already exist from SQLAlchemy create_all)
 """
 from __future__ import annotations
 
@@ -41,7 +41,10 @@ def upgrade() -> None:
             existing_nullable=True,
         )
 
-    op.create_index("ix_refresh_tokens_expires_at", "refresh_tokens", ["expires_at"])
+    # Use IF NOT EXISTS — index may already exist if SQLAlchemy create_all ran
+    op.execute(sa.text(
+        "CREATE INDEX IF NOT EXISTS ix_refresh_tokens_expires_at ON refresh_tokens (expires_at)"
+    ))
 
     # ── audit_logs ─────────────────────────────────────────────────────────────
     with op.batch_alter_table("audit_logs") as batch_op:
@@ -79,33 +82,28 @@ def upgrade() -> None:
             )
         )
 
-    # ── ap_configs (new table, entirely missing from 0001) ─────────────────────
-    op.create_table(
-        "ap_configs",
-        sa.Column("id", sa.Integer(), nullable=False),
-        sa.Column("ssid", sa.String(64), nullable=False),
-        sa.Column("password", sa.String(64), nullable=False, server_default="sudopi2024"),
-        sa.Column("channel", sa.Integer(), nullable=False, server_default="6"),
-        sa.Column("country_code", sa.String(2), nullable=False, server_default="EG"),
-        sa.Column("is_active", sa.Boolean(), nullable=False, server_default="1"),
-        sa.Column("hide_ssid", sa.Boolean(), nullable=False, server_default="0"),
-        sa.Column("max_clients", sa.Integer(), nullable=False, server_default="20"),
-        sa.Column("band", sa.String(8), nullable=False, server_default="2.4GHz"),
-        sa.Column(
-            "created_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
-            server_default=sa.text("(CURRENT_TIMESTAMP)"),
-        ),
-        sa.Column(
-            "updated_at",
-            sa.DateTime(timezone=True),
-            nullable=False,
-            server_default=sa.text("(CURRENT_TIMESTAMP)"),
-        ),
-        sa.PrimaryKeyConstraint("id"),
-    )
-    op.create_index("ix_ap_configs_id", "ap_configs", ["id"])
+    # ── ap_configs ─────────────────────────────────────────────────────────────
+    # Use IF NOT EXISTS because SQLAlchemy create_all may have already created
+    # this table during a previous failed startup before migrations ran.
+    op.execute(sa.text("""
+        CREATE TABLE IF NOT EXISTS ap_configs (
+            id INTEGER NOT NULL,
+            ssid VARCHAR(64) NOT NULL,
+            password VARCHAR(64) NOT NULL DEFAULT 'sudopi2024',
+            channel INTEGER NOT NULL DEFAULT 6,
+            country_code VARCHAR(2) NOT NULL DEFAULT 'EG',
+            is_active BOOLEAN NOT NULL DEFAULT 1,
+            hide_ssid BOOLEAN NOT NULL DEFAULT 0,
+            max_clients INTEGER NOT NULL DEFAULT 20,
+            band VARCHAR(8) NOT NULL DEFAULT '2.4GHz',
+            created_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+            updated_at DATETIME NOT NULL DEFAULT (CURRENT_TIMESTAMP),
+            PRIMARY KEY (id)
+        )
+    """))
+    op.execute(sa.text(
+        "CREATE INDEX IF NOT EXISTS ix_ap_configs_id ON ap_configs (id)"
+    ))
 
 
 def downgrade() -> None:
@@ -120,12 +118,20 @@ def downgrade() -> None:
 
     with op.batch_alter_table("audit_logs") as batch_op:
         batch_op.drop_column("user_agent")
-        batch_op.alter_column("details", new_column_name="detail", type_=sa.Text(), existing_nullable=True)
-        batch_op.alter_column("created_at", new_column_name="timestamp", existing_type=sa.DateTime(timezone=True))
+        batch_op.alter_column(
+            "details", new_column_name="detail",
+            type_=sa.Text(), existing_nullable=True,
+        )
+        batch_op.alter_column(
+            "created_at", new_column_name="timestamp",
+            existing_type=sa.DateTime(timezone=True),
+        )
 
-    op.drop_index("ix_refresh_tokens_expires_at", "refresh_tokens")
     with op.batch_alter_table("refresh_tokens") as batch_op:
-        batch_op.alter_column("user_agent", new_column_name="device_info", type_=sa.String(255), existing_nullable=True)
+        batch_op.alter_column(
+            "user_agent", new_column_name="device_info",
+            type_=sa.String(255), existing_nullable=True,
+        )
 
     with op.batch_alter_table("users") as batch_op:
         batch_op.drop_column("is_system")
