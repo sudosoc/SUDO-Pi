@@ -1,12 +1,25 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import ReactECharts from "echarts-for-react";
-import { Activity, Thermometer, HardDrive, Wifi } from "lucide-react";
+import { Activity, Thermometer, HardDrive, Wifi, Heart } from "lucide-react";
 import { metricsApi, type MetricsPoint } from "@/api/metrics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
+// ─── Hardcoded theme colors (ECharts cannot resolve CSS vars) ─────────────────
+const C = {
+  cpu:       "#22d3ee",   // cyan
+  ram:       "#fb923c",   // orange
+  tempNorm:  "#facc15",   // yellow
+  tempHot:   "#f87171",   // red
+  rx:        "#4ade80",   // green
+  tx:        "#a78bfa",   // violet
+  muted:     "#6b7280",
+  border:    "#2b2b2b",
+} as const;
+
+// ─── Time ranges ──────────────────────────────────────────────────────────────
 const TIME_RANGES = [
   { label: "1h", hours: 1 },
   { label: "6h", hours: 6 },
@@ -14,110 +27,141 @@ const TIME_RANGES = [
   { label: "7d", hours: 168 },
 ] as const;
 
-function formatBytes(bytes: number): string {
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function fmtNetRate(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB/s`;
   if (bytes >= 1024) return `${(bytes / 1024).toFixed(1)} KB/s`;
   return `${bytes.toFixed(0)} B/s`;
 }
-
-function formatTime(ts: number): string {
+function fmtTime(ts: number): string {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 }
-
-function formatDateTime(ts: number, hours: number): string {
-  if (hours <= 6) return formatTime(ts);
-  return new Date(ts).toLocaleString([], {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
+function fmtDateTime(ts: number, hours: number): string {
+  if (hours <= 6) return fmtTime(ts);
+  return new Date(ts).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-// Compute per-second rate from cumulative bytes between consecutive points
-function computeRates(points: MetricsPoint[]): { t: number; rxRate: number; txRate: number }[] {
-  const result: { t: number; rxRate: number; txRate: number }[] = [];
+function computeRates(points: MetricsPoint[]): { t: number; rx: number; tx: number }[] {
+  const out: { t: number; rx: number; tx: number }[] = [];
   for (let i = 1; i < points.length; i++) {
-    const dt = (points[i].t - points[i - 1].t) / 1000; // seconds
+    const dt = (points[i].t - points[i - 1].t) / 1000;
     if (dt <= 0) continue;
-    const rxRate = Math.max(0, (points[i].rx - points[i - 1].rx) / dt);
-    const txRate = Math.max(0, (points[i].tx - points[i - 1].tx) / dt);
-    result.push({ t: points[i].t, rxRate, txRate });
+    out.push({
+      t: points[i].t,
+      rx: Math.max(0, (points[i].rx - points[i - 1].rx) / dt),
+      tx: Math.max(0, (points[i].tx - points[i - 1].tx) / dt),
+    });
   }
-  return result;
+  return out;
 }
 
+// ─── Gift 1: Health Score ─────────────────────────────────────────────────────
+function healthScore(p: MetricsPoint): number {
+  const cpuScore  = Math.max(0, 100 - p.cpu);
+  const ramScore  = Math.max(0, 100 - p.ram);
+  const diskScore = p.disk != null ? Math.max(0, 100 - p.disk) : 100;
+  let tempScore = 100;
+  if (p.temp != null) {
+    if (p.temp >= 80) tempScore = 0;
+    else if (p.temp > 50) tempScore = 100 - ((p.temp - 50) / 30) * 100;
+  }
+  return Math.round((cpuScore * 0.3 + ramScore * 0.3 + diskScore * 0.2 + tempScore * 0.2));
+}
+
+function HealthBadge({ score }: { score: number }) {
+  const color = score >= 80 ? "text-green-400" : score >= 60 ? "text-yellow-400" : "text-red-400";
+  const label = score >= 80 ? "Healthy" : score >= 60 ? "Fair" : "Critical";
+  const ring  = score >= 80 ? "ring-green-400/30" : score >= 60 ? "ring-yellow-400/30" : "ring-red-400/30";
+  return (
+    <div className={cn("flex items-center gap-3 rounded-xl border px-4 py-3 ring-1", ring)}>
+      <Heart className={cn("w-5 h-5 shrink-0", color)} />
+      <div>
+        <p className="text-xs text-muted-foreground">System Health</p>
+        <div className="flex items-baseline gap-1.5">
+          <span className={cn("text-2xl font-bold tabular-nums", color)}>{score}</span>
+          <span className={cn("text-xs font-medium", color)}>/ 100 — {label}</span>
+        </div>
+      </div>
+      {/* score bar */}
+      <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden ml-2">
+        <div
+          className={cn("h-full rounded-full transition-all duration-700",
+            score >= 80 ? "bg-green-400" : score >= 60 ? "bg-yellow-400" : "bg-red-400"
+          )}
+          style={{ width: `${score}%` }}
+        />
+      </div>
+    </div>
+  );
+}
+
+// ─── Live Stat Card ───────────────────────────────────────────────────────────
+function LiveStat({
+  label, value, sub, color,
+}: { label: string; value: string; sub?: string; color: string }) {
+  return (
+    <div className="rounded-xl border border-border bg-card/60 px-4 py-3">
+      <p className="text-xs text-muted-foreground mb-0.5">{label}</p>
+      <p className={cn("text-xl font-bold tabular-nums", color)}>{value}</p>
+      {sub && <p className="text-[10px] text-muted-foreground mt-0.5">{sub}</p>}
+    </div>
+  );
+}
+
+// ─── Empty State ──────────────────────────────────────────────────────────────
 function EmptyState() {
   return (
     <div className="flex flex-col items-center justify-center h-48 text-center text-muted-foreground gap-2">
       <Activity className="w-8 h-8 opacity-40" />
       <p className="text-sm font-medium">Collecting data…</p>
-      <p className="text-xs">Charts will populate within 1 minute</p>
+      <p className="text-xs">Charts populate every 60 seconds</p>
     </div>
   );
 }
 
-interface LineChartProps {
-  title: string;
-  icon: React.ReactNode;
-  series: { name: string; data: [number, number][]; color: string }[];
-  yLabel?: string;
-  yMax?: number;
-  yMin?: number;
-  tooltipFormatter?: (value: number) => string;
-  hours: number;
-  empty: boolean;
-}
+// ─── Line Chart ───────────────────────────────────────────────────────────────
+interface ChartSeries { name: string; data: [number, number][]; color: string }
 
 function LineChart({
-  title,
-  icon,
-  series,
-  yLabel = "%",
-  yMax = 100,
-  yMin = 0,
-  tooltipFormatter,
-  hours,
-  empty,
-}: LineChartProps) {
+  title, icon, series, yLabel = "%", yMax = 100, yMin = 0,
+  tooltipFormatter, hours, empty,
+}: {
+  title: string; icon: React.ReactNode;
+  series: ChartSeries[];
+  yLabel?: string; yMax?: number; yMin?: number;
+  tooltipFormatter?: (v: number) => string;
+  hours: number; empty: boolean;
+}) {
   const option = {
     backgroundColor: "transparent",
     tooltip: {
       trigger: "axis",
+      backgroundColor: "#1c1c1c",
+      borderColor: "#2b2b2b",
+      textStyle: { color: "#e8e8e8", fontSize: 12 },
       formatter: (params: { axisValue: number; seriesName: string; value: [number, number] }[]) => {
-        const time = formatDateTime(params[0]?.axisValue, hours);
+        const time = fmtDateTime(params[0]?.axisValue, hours);
         const lines = params.map((p) => {
           const val = tooltipFormatter
             ? tooltipFormatter(p.value[1])
             : `${p.value[1].toFixed(1)}${yLabel}`;
-          return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${
-            series.find((s) => s.name === p.seriesName)?.color ?? "#888"
-          };margin-right:6px;"></span>${p.seriesName}: <b>${val}</b>`;
+          const col = series.find((s) => s.name === p.seriesName)?.color ?? "#888";
+          return `<span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${col};margin-right:6px;"></span>${p.seriesName}: <b>${val}</b>`;
         });
-        return `<div style="font-size:12px;">${time}<br/>${lines.join("<br/>")}</div>`;
+        return `<div style="font-size:12px;line-height:1.6">${time}<br/>${lines.join("<br/>")}</div>`;
       },
     },
-    grid: { left: 48, right: 16, top: 16, bottom: 32 },
+    grid: { left: 52, right: 16, top: 16, bottom: 32 },
     xAxis: {
       type: "time",
-      axisLabel: {
-        formatter: (val: number) => formatTime(val),
-        fontSize: 11,
-        color: "var(--muted-foreground, #888)",
-      },
+      axisLabel: { formatter: (v: number) => fmtTime(v), fontSize: 10, color: C.muted },
       splitLine: { show: false },
-      axisLine: { lineStyle: { color: "var(--border, #333)" } },
+      axisLine: { lineStyle: { color: C.border } },
     },
     yAxis: {
-      type: "value",
-      min: yMin,
-      max: yMax,
-      axisLabel: {
-        formatter: (v: number) => `${v}${yLabel}`,
-        fontSize: 11,
-        color: "var(--muted-foreground, #888)",
-      },
-      splitLine: { lineStyle: { color: "var(--border, #333)", type: "dashed" } },
+      type: "value", min: yMin, max: yMax,
+      axisLabel: { formatter: (v: number) => `${v}${yLabel}`, fontSize: 10, color: C.muted },
+      splitLine: { lineStyle: { color: C.border, type: "dashed" } },
     },
     series: series.map((s) => ({
       name: s.name,
@@ -129,13 +173,9 @@ function LineChart({
       itemStyle: { color: s.color },
       areaStyle: {
         color: {
-          type: "linear",
-          x: 0,
-          y: 0,
-          x2: 0,
-          y2: 1,
+          type: "linear", x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
-            { offset: 0, color: s.color + "33" },
+            { offset: 0, color: s.color + "44" },
             { offset: 1, color: s.color + "00" },
           ],
         },
@@ -152,16 +192,13 @@ function LineChart({
         </CardTitle>
       </CardHeader>
       <CardContent className="pt-0">
-        {empty ? (
-          <EmptyState />
-        ) : (
-          <ReactECharts option={option} style={{ height: 200 }} notMerge />
-        )}
+        {empty ? <EmptyState /> : <ReactECharts option={option} style={{ height: 200 }} notMerge />}
       </CardContent>
     </Card>
   );
 }
 
+// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function MetricsPage() {
   const [hours, setHours] = useState(1);
 
@@ -173,35 +210,28 @@ export default function MetricsPage() {
   });
 
   const hasData = points.length > 0;
+  const latest  = hasData ? points[points.length - 1] : null;
+  const score   = latest ? healthScore(latest) : null;
 
-  // CPU series
-  const cpuData: [number, number][] = points.map((p) => [p.t, p.cpu]);
-
-  // RAM series
-  const ramData: [number, number][] = points.map((p) => [p.t, p.ram]);
-
-  // Temperature series (filter nulls)
-  const tempData: [number, number][] = points
-    .filter((p) => p.temp !== null)
-    .map((p) => [p.t, p.temp as number]);
+  const cpuData:  [number, number][] = points.map((p) => [p.t, p.cpu]);
+  const ramData:  [number, number][] = points.map((p) => [p.t, p.ram]);
+  const tempData: [number, number][] = points.filter((p) => p.temp != null).map((p) => [p.t, p.temp as number]);
   const hasTemp = tempData.length > 0;
+  const maxTemp = hasTemp ? Math.max(...tempData.map((d) => d[1])) : 0;
+  const tempColor = maxTemp > 80 ? C.tempHot : C.tempNorm;
 
-  // Network rates
   const rates = computeRates(points);
-  const rxData: [number, number][] = rates.map((r) => [r.t, r.rxRate]);
-  const txData: [number, number][] = rates.map((r) => [r.t, r.txRate]);
-  const maxNetRate = Math.max(...rates.map((r) => Math.max(r.rxRate, r.txRate)), 1024);
-
-  // Temperature color: red when > 80°C
-  const maxTemp = tempData.length > 0 ? Math.max(...tempData.map((d) => d[1])) : 0;
-  const tempColor = maxTemp > 80 ? "hsl(var(--destructive))" : "hsl(var(--warning, 38 92% 50%))";
+  const rxData: [number, number][] = rates.map((r) => [r.t, r.rx]);
+  const txData: [number, number][] = rates.map((r) => [r.t, r.tx]);
+  const maxNet = Math.max(...rates.map((r) => Math.max(r.rx, r.tx)), 1024);
 
   return (
-    <div className="p-6 space-y-6">
-      <div className="flex items-center justify-between">
+    <div className="p-6 space-y-5">
+      {/* Header row */}
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-lg font-semibold">Performance History</h2>
-          <p className="text-sm text-muted-foreground">Historical system metrics</p>
+          <p className="text-sm text-muted-foreground">Historical system metrics — recorded every 60 s</p>
         </div>
         <div className="flex items-center gap-1 bg-muted rounded-lg p-1">
           {TIME_RANGES.map((r) => (
@@ -209,10 +239,7 @@ export default function MetricsPage() {
               key={r.hours}
               variant="ghost"
               size="sm"
-              className={cn(
-                "h-7 px-3 text-xs font-medium",
-                hours === r.hours && "bg-background shadow-sm text-foreground"
-              )}
+              className={cn("h-7 px-3 text-xs font-medium", hours === r.hours && "bg-background shadow-sm text-foreground")}
               onClick={() => setHours(r.hours)}
             >
               {r.label}
@@ -220,6 +247,37 @@ export default function MetricsPage() {
           ))}
         </div>
       </div>
+
+      {/* Gift 1 — Live stats + health score */}
+      {latest && (
+        <>
+          <HealthBadge score={score!} />
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <LiveStat
+              label="CPU (latest)"
+              value={`${latest.cpu.toFixed(1)}%`}
+              sub={`${points.length} samples`}
+              color="text-cyan-400"
+            />
+            <LiveStat
+              label="RAM (latest)"
+              value={`${latest.ram.toFixed(1)}%`}
+              color="text-orange-400"
+            />
+            <LiveStat
+              label="Temperature"
+              value={latest.temp != null ? `${latest.temp.toFixed(1)}°C` : "—"}
+              color={latest.temp != null && latest.temp > 70 ? "text-red-400" : "text-yellow-400"}
+            />
+            <LiveStat
+              label="Last recorded"
+              value={fmtTime(latest.t)}
+              sub={new Date(latest.t).toLocaleDateString()}
+              color="text-muted-foreground"
+            />
+          </div>
+        </>
+      )}
 
       {isLoading && (
         <div className="flex items-center justify-center h-40 text-muted-foreground text-sm">
@@ -231,50 +289,35 @@ export default function MetricsPage() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           <LineChart
             title="CPU Usage"
-            icon={<Activity className="w-3.5 h-3.5" />}
-            series={[{ name: "CPU", data: cpuData, color: "hsl(var(--primary))" }]}
-            yLabel="%"
-            yMax={100}
-            yMin={0}
-            hours={hours}
-            empty={!hasData}
+            icon={<Activity className="w-3.5 h-3.5 text-cyan-400" />}
+            series={[{ name: "CPU", data: cpuData, color: C.cpu }]}
+            yLabel="%" yMax={100} yMin={0}
+            hours={hours} empty={!hasData}
           />
-
           <LineChart
             title="RAM Usage"
-            icon={<HardDrive className="w-3.5 h-3.5" />}
-            series={[{ name: "RAM", data: ramData, color: "hsl(var(--warning, 38 92% 50%))" }]}
-            yLabel="%"
-            yMax={100}
-            yMin={0}
-            hours={hours}
-            empty={!hasData}
+            icon={<HardDrive className="w-3.5 h-3.5 text-orange-400" />}
+            series={[{ name: "RAM", data: ramData, color: C.ram }]}
+            yLabel="%" yMax={100} yMin={0}
+            hours={hours} empty={!hasData}
           />
-
           <LineChart
             title="CPU Temperature"
-            icon={<Thermometer className="w-3.5 h-3.5" />}
+            icon={<Thermometer className="w-3.5 h-3.5 text-yellow-400" />}
             series={[{ name: "Temperature", data: tempData, color: tempColor }]}
-            yLabel="°C"
-            yMax={100}
-            yMin={0}
-            hours={hours}
-            empty={!hasData || !hasTemp}
+            yLabel="°C" yMax={100} yMin={0}
+            hours={hours} empty={!hasData || !hasTemp}
           />
-
           <LineChart
             title="Network Throughput"
-            icon={<Wifi className="w-3.5 h-3.5" />}
+            icon={<Wifi className="w-3.5 h-3.5 text-green-400" />}
             series={[
-              { name: "RX", data: rxData, color: "hsl(var(--success, 142 76% 36%))" },
-              { name: "TX", data: txData, color: "hsl(var(--primary))" },
+              { name: "RX", data: rxData, color: C.rx },
+              { name: "TX", data: txData, color: C.tx },
             ]}
-            yLabel=" B/s"
-            yMax={maxNetRate * 1.1}
-            yMin={0}
-            tooltipFormatter={formatBytes}
-            hours={hours}
-            empty={!hasData || rates.length === 0}
+            yLabel=" B/s" yMax={maxNet * 1.1} yMin={0}
+            tooltipFormatter={fmtNetRate}
+            hours={hours} empty={!hasData || rates.length === 0}
           />
         </div>
       )}

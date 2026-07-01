@@ -28,7 +28,37 @@ class GpuMemoryRequest(BaseModel):
 
 @router.get("/status")
 async def get_display_status(_: ActiveUser) -> dict:
-    return await display_service.get_display_status()
+    raw = await display_service.get_display_status()
+    gpu_mb = await display_service.get_gpu_memory()
+
+    normalized_displays = []
+    for d in raw.get("displays", []):
+        refresh = d.get("refresh_rate")
+        normalized_displays.append({
+            "name":         d["name"],
+            "connected":    d.get("connected", False),
+            "resolution":   d.get("resolution"),
+            "refresh_rate": str(refresh) if refresh is not None else None,
+            "rotation":     d.get("rotation"),
+            "primary":      d.get("is_primary", False),
+        })
+
+    # If xrandr is unavailable, synthesise a display from tvservice data
+    if not normalized_displays and raw.get("hdmi_connected"):
+        normalized_displays.append({
+            "name":         "HDMI",
+            "connected":    True,
+            "resolution":   raw.get("resolution"),
+            "refresh_rate": str(raw["refresh_rate"]) if raw.get("refresh_rate") else None,
+            "rotation":     None,
+            "primary":      True,
+        })
+
+    return {
+        "displays":      normalized_displays,
+        "hdmi_power":    raw.get("display_on", True),
+        "gpu_memory_mb": gpu_mb,
+    }
 
 
 @router.get("/resolutions")

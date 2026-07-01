@@ -83,31 +83,69 @@ const vpnApi = {
 
 // ─── Sub-components ──────────────────────────────────────────────────────────
 
-function VpnIpBanner({ vpnIp }: { vpnIp: VpnIp | undefined }) {
+// Gift 5 — enriched VPN status banner with live tunnel summary
+function VpnIpBanner({
+  vpnIp,
+  wgTunnels,
+  onQuickConnect,
+}: {
+  vpnIp: VpnIp | undefined;
+  wgTunnels: WgTunnel[] | undefined;
+  onQuickConnect: (name: string) => void;
+}) {
+  const tunnelsUp = wgTunnels?.filter((t) => t.status === "up") ?? [];
+  const tunnelsDown = wgTunnels?.filter((t) => t.status === "down") ?? [];
+
   return (
     <div
       className={cn(
-        "flex items-center gap-3 rounded-xl border px-4 py-3",
+        "rounded-xl border px-4 py-3 space-y-3",
         vpnIp?.connected
           ? "border-green-500/30 bg-green-500/10"
           : "border-border bg-card/60",
       )}
     >
-      {vpnIp?.connected ? (
-        <ShieldCheck className="w-5 h-5 text-green-400 shrink-0" />
-      ) : (
-        <ShieldOff className="w-5 h-5 text-muted-foreground shrink-0" />
-      )}
-      <div>
-        <p className="text-sm font-medium">
-          {vpnIp?.connected ? "VPN Connected" : "VPN Disconnected"}
-        </p>
-        {vpnIp?.ip ? (
-          <p className="text-xs text-muted-foreground font-mono">{vpnIp.ip}</p>
+      <div className="flex items-center gap-3">
+        {vpnIp?.connected ? (
+          <ShieldCheck className="w-5 h-5 text-green-400 shrink-0" />
         ) : (
-          <p className="text-xs text-muted-foreground">No VPN IP detected</p>
+          <ShieldOff className="w-5 h-5 text-muted-foreground shrink-0" />
+        )}
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold">
+            {vpnIp?.connected ? "VPN Protected" : "VPN Disconnected"}
+          </p>
+          {vpnIp?.ip ? (
+            <p className="text-xs text-green-400/80 font-mono">{vpnIp.ip}</p>
+          ) : (
+            <p className="text-xs text-muted-foreground">No VPN IP detected</p>
+          )}
+        </div>
+        {tunnelsUp.length > 0 && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <span className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+            <span className="text-xs text-green-400 font-medium">
+              {tunnelsUp.length} tunnel{tunnelsUp.length > 1 ? "s" : ""} active
+            </span>
+          </div>
         )}
       </div>
+
+      {/* Quick-connect row: show stopped tunnels as one-click buttons */}
+      {!vpnIp?.connected && tunnelsDown.length > 0 && (
+        <div className="flex flex-wrap gap-2 pt-1 border-t border-border/40">
+          <span className="text-xs text-muted-foreground self-center">Quick connect:</span>
+          {tunnelsDown.map((t) => (
+            <button
+              key={t.name}
+              onClick={() => onQuickConnect(t.name)}
+              className="h-6 px-2.5 rounded-md border border-primary/40 text-xs text-primary bg-primary/5 hover:bg-primary/15 transition-colors font-mono"
+            >
+              {t.name}
+            </button>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -481,7 +519,11 @@ export default function VpnPage() {
       )}
 
       {/* VPN IP Banner */}
-      <VpnIpBanner vpnIp={vpnIp} />
+      <VpnIpBanner
+        vpnIp={vpnIp}
+        wgTunnels={wgTunnels}
+        onQuickConnect={(name) => wgToggle.mutate({ name, status: "down" })}
+      />
 
       {/* Tabs */}
       <Tabs defaultValue="wireguard">

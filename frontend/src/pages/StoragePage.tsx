@@ -44,12 +44,19 @@ interface UsbDevice {
 }
 
 interface DiskUsage {
-  filesystem: string;
-  size: string;
-  used: string;
-  available: string;
-  use_percent: string;
+  device: string;
+  size_bytes: number;
+  used_bytes: number;
+  avail_bytes: number;
+  percent: number;
   mountpoint: string;
+}
+
+function fmtBytes(b: number): string {
+  if (b >= 1e12) return `${(b / 1e12).toFixed(1)} TB`;
+  if (b >= 1e9)  return `${(b / 1e9).toFixed(1)} GB`;
+  if (b >= 1e6)  return `${(b / 1e6).toFixed(0)} MB`;
+  return `${Math.round(b / 1e3)} KB`;
 }
 
 // ─── API ──────────────────────────────────────────────────────────────────────
@@ -560,6 +567,27 @@ export default function StoragePage() {
 
         {/* ── Disk Usage ────────────────────────────────────────── */}
         <TabsContent value="usage" className="mt-4">
+          {/* Gift 3 — warning banner when any disk is critically full */}
+          {usage && usage.some((fs) => fs.percent >= 85) && (
+            <div className="mb-4 rounded-xl border border-destructive/50 bg-destructive/10 px-4 py-3 flex items-start gap-3">
+              <svg className="w-5 h-5 text-destructive mt-0.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v4m0 4h.01M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              </svg>
+              <div>
+                <p className="text-sm font-semibold text-destructive">Disk Space Warning</p>
+                <div className="mt-1 space-y-0.5">
+                  {usage.filter((fs) => fs.percent >= 85).map((fs, i) => (
+                    <p key={i} className="text-xs text-destructive/90">
+                      <span className="font-mono font-bold">{fs.mountpoint}</span> is{" "}
+                      <span className="font-bold">{fs.percent.toFixed(0)}% full</span>
+                      {" "}— only {fmtBytes(fs.avail_bytes)} remaining
+                    </p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
           <Card>
             <CardHeader className="pb-2">
               <CardTitle>Disk Usage</CardTitle>
@@ -576,36 +604,33 @@ export default function StoragePage() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {usage.map((fs, i) => {
-                    const pct = parseInt(fs.use_percent);
-                    return (
-                      <div key={i} className="space-y-2">
-                        <div className="flex items-center justify-between text-sm">
-                          <div className="min-w-0">
-                            <span className="font-mono font-medium">{fs.mountpoint}</span>
-                            <span className="text-muted-foreground text-xs ml-2 truncate hidden sm:inline">
-                              {fs.filesystem}
-                            </span>
-                          </div>
-                          <div className="text-right shrink-0 ml-2">
-                            <span
-                              className={cn(
-                                "font-bold text-sm",
-                                pct >= 90 ? "text-destructive" : pct >= 75 ? "text-yellow-400" : "text-foreground",
-                              )}
-                            >
-                              {fs.use_percent}
-                            </span>
-                          </div>
+                  {usage.map((fs, i) => (
+                    <div key={i} className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="min-w-0">
+                          <span className="font-mono font-medium">{fs.mountpoint}</span>
+                          <span className="text-muted-foreground text-xs ml-2 truncate hidden sm:inline">
+                            {fs.device}
+                          </span>
                         </div>
-                        <UsageBar percent={pct} />
-                        <div className="flex justify-between text-xs text-muted-foreground">
-                          <span>{fs.used} used</span>
-                          <span>{fs.available} free of {fs.size}</span>
+                        <div className="text-right shrink-0 ml-2">
+                          <span
+                            className={cn(
+                              "font-bold text-sm",
+                              fs.percent >= 90 ? "text-destructive" : fs.percent >= 75 ? "text-yellow-400" : "text-foreground",
+                            )}
+                          >
+                            {fs.percent.toFixed(0)}%
+                          </span>
                         </div>
                       </div>
-                    );
-                  })}
+                      <UsageBar percent={fs.percent} />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>{fmtBytes(fs.used_bytes)} used</span>
+                        <span>{fmtBytes(fs.avail_bytes)} free of {fmtBytes(fs.size_bytes)}</span>
+                      </div>
+                    </div>
+                  ))}
                 </div>
               )}
             </CardContent>

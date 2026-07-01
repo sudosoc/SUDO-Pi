@@ -226,6 +226,32 @@ export default function SpeedTestPage() {
         </CardContent>
       </Card>
 
+      {/* Gift 2 — trend vs previous result */}
+      {history && history.length >= 2 && (() => {
+        const prev = history[1];
+        const downDiff = latest!.download - prev.download;
+        const upDiff   = latest!.upload   - prev.upload;
+        const isUp     = downDiff >= 0;
+        const diffMbps = (n: number) => `${n >= 0 ? "+" : ""}${(n / 1_000_000).toFixed(1)} Mbps`;
+        return (
+          <div className={cn(
+            "flex items-center gap-3 rounded-xl border px-4 py-3 text-sm",
+            isUp ? "border-green-500/30 bg-green-500/10" : "border-yellow-500/30 bg-yellow-500/10",
+          )}>
+            {isUp
+              ? <TrendingUp className="w-4 h-4 text-green-400 shrink-0" />
+              : <TrendingDown className="w-4 h-4 text-yellow-400 shrink-0" />
+            }
+            <span className={isUp ? "text-green-400 font-medium" : "text-yellow-400 font-medium"}>
+              {isUp ? "Faster" : "Slower"} than previous test
+            </span>
+            <span className="text-muted-foreground">
+              Download {diffMbps(downDiff)} · Upload {diffMbps(upDiff)}
+            </span>
+          </div>
+        );
+      })()}
+
       {/* Live Result */}
       {latest && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

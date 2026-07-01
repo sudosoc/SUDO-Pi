@@ -27,14 +27,15 @@ async def _run(cmd: list[str], timeout: float = 10.0) -> tuple[int, str, str]:
 async def run_speedtest() -> dict:
     """Run speedtest-cli --json. Install if not present. Returns speed result dict."""
     # Check if speedtest-cli is installed
-    code, out, err = await _run(["which", "speedtest-cli"], timeout=5.0)
+    code, out, _ = await _run(["which", "speedtest-cli"], timeout=5.0)
     if code != 0:
-        logger.info("speedtest-cli not found, attempting pip3 install...")
+        logger.info("speedtest-cli not found, installing via venv pip...")
         install_code, _, install_err = await _run(
-            ["sudo", "pip3", "install", "speedtest-cli"], timeout=60.0
+            ["/opt/sudo-pi/venv/bin/pip", "install", "speedtest-cli"],
+            timeout=120.0,
         )
         if install_code != 0:
-            raise RuntimeError(f"speedtest-cli not installed and install failed: {install_err}")
+            raise RuntimeError(f"speedtest-cli not installed and install failed: {install_err.strip()}")
         logger.info("speedtest-cli installed successfully")
 
     start = time.time()
@@ -49,15 +50,22 @@ async def run_speedtest() -> dict:
     except json.JSONDecodeError as exc:
         raise RuntimeError(f"Failed to parse speedtest output: {exc}") from exc
 
+    server = data.get("server", {})
+    client = data.get("client", {})
+    location_parts = filter(None, [server.get("name"), server.get("country")])
+
     result = {
-        "download_mbps": round(data["download"] / 1_000_000, 2),
-        "upload_mbps": round(data["upload"] / 1_000_000, 2),
-        "ping_ms": round(data["ping"], 1),
-        "server_name": data["server"]["sponsor"],
-        "server_country": data["server"]["country"],
-        "timestamp": data["timestamp"],
-        "bytes_received": data["bytes_received"],
-        "bytes_sent": data["bytes_sent"],
+        # download / upload in raw bits/s so frontend formatMbps(bps) works correctly
+        "download":        data["download"],
+        "upload":          data["upload"],
+        "ping":            round(data["ping"], 1),
+        "server_name":     server.get("sponsor", server.get("name", "Unknown")),
+        "server_location": ", ".join(location_parts) or "Unknown",
+        "isp":             client.get("isp"),
+        "share_url":       data.get("share"),
+        "bytes_sent":      data.get("bytes_sent", 0),
+        "bytes_received":  data.get("bytes_received", 0),
+        "timestamp":       data.get("timestamp", ""),
         "duration_seconds": round(time.time() - start, 1),
     }
 
@@ -67,9 +75,9 @@ async def run_speedtest() -> dict:
 
     logger.info(
         "Speedtest complete: {:.1f} Mbps down / {:.1f} Mbps up / {:.0f} ms ping",
-        result["download_mbps"],
-        result["upload_mbps"],
-        result["ping_ms"],
+        result["download"] / 1_000_000,
+        result["upload"] / 1_000_000,
+        result["ping"],
     )
     return result
 
