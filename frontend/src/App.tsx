@@ -18,6 +18,15 @@ const SecurityPage    = lazy(() => import("@/pages/SecurityPage"));
 const SettingsPage    = lazy(() => import("@/pages/SettingsPage"));
 const DevicesPage     = lazy(() => import("@/pages/DevicesPage"));
 const LogsPage        = lazy(() => import("@/pages/LogsPage"));
+const VpnPage         = lazy(() => import("@/pages/VpnPage"));
+const FirewallPage    = lazy(() => import("@/pages/FirewallPage"));
+const CronPage        = lazy(() => import("@/pages/CronPage"));
+const SshPage         = lazy(() => import("@/pages/SshPage"));
+const MetricsPage     = lazy(() => import("@/pages/MetricsPage"));
+const AlertsPage      = lazy(() => import("@/pages/AlertsPage"));
+const StoragePage     = lazy(() => import("@/pages/StoragePage"));
+const SpeedTestPage   = lazy(() => import("@/pages/SpeedTestPage"));
+const DisplayPage     = lazy(() => import("@/pages/DisplayPage"));
 
 function ProtectedLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -55,6 +64,15 @@ export default function App() {
           <Route path="/devices"   element={<DevicesPage />} />
           <Route path="/logs"      element={<LogsPage />} />
           <Route path="/settings"  element={<SettingsPage />} />
+          <Route path="/vpn"       element={<VpnPage />} />
+          <Route path="/firewall"  element={<FirewallPage />} />
+          <Route path="/cron"      element={<CronPage />} />
+          <Route path="/ssh"       element={<SshPage />} />
+          <Route path="/metrics"   element={<MetricsPage />} />
+          <Route path="/alerts"    element={<AlertsPage />} />
+          <Route path="/storage"   element={<StoragePage />} />
+          <Route path="/speedtest" element={<SpeedTestPage />} />
+          <Route path="/display"   element={<DisplayPage />} />
           <Route element={<AdminGuard />}>
             <Route path="/users"    element={<UsersPage />} />
             <Route path="/security" element={<SecurityPage />} />

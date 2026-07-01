@@ -16,6 +16,15 @@ from app.api.v1 import (
     bluetooth,
     gpio,
     security,
+    vpn,
+    firewall,
+    cron,
+    ssh,
+    metrics,
+    alerts,
+    storage,
+    speedtest,
+    display,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -33,3 +42,12 @@ api_router.include_router(docker.router)
 api_router.include_router(bluetooth.router)
 api_router.include_router(gpio.router)
 api_router.include_router(security.router)
+api_router.include_router(vpn.router)
+api_router.include_router(firewall.router)
+api_router.include_router(cron.router)
+api_router.include_router(ssh.router)
+api_router.include_router(metrics.router)
+api_router.include_router(alerts.router)
+api_router.include_router(storage.router)
+api_router.include_router(speedtest.router)
+api_router.include_router(display.router)

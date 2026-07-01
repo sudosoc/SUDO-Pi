@@ -8,12 +8,16 @@ from fastapi import WebSocket, WebSocketDisconnect
 from loguru import logger
 
 from app.core.config import settings
+from app.core.database import AsyncSessionFactory
 from app.core.security import verify_access_token, ACCESS_COOKIE_NAME
 from app.services.system_service import get_full_system_stats
 from app.websockets.manager import ws_manager
 
 ROOM_SYSTEM = "system_metrics"
 ROOM_NOTIFICATIONS = "notifications"
+
+_SNAPSHOT_INTERVAL = 60   # seconds
+_PRUNE_INTERVAL = 3600    # seconds (1 hour)
 
 
 async def _broadcast_system_metrics_loop() -> None:
@@ -31,8 +35,40 @@ async def _broadcast_system_metrics_loop() -> None:
         await asyncio.sleep(settings.SYSTEM_METRICS_INTERVAL)
 
 
+async def _record_metrics_loop() -> None:
+    """Record a metrics snapshot every 60 seconds and check alert rules."""
+    from app.services.metrics_service import record_snapshot, prune_old_snapshots
+    from app.services.alerts_service import check_alerts
+
+    logger.info("Metrics recorder loop started (interval={}s)", _SNAPSHOT_INTERVAL)
+    prune_counter = 0
+    while True:
+        await asyncio.sleep(_SNAPSHOT_INTERVAL)
+        try:
+            async with AsyncSessionFactory() as db:
+                await record_snapshot(db)
+        except Exception as exc:
+            logger.error("Metrics snapshot error: {}", exc)
+
+        try:
+            async with AsyncSessionFactory() as db:
+                await check_alerts(db)
+        except Exception as exc:
+            logger.error("Alert check error: {}", exc)
+
+        prune_counter += _SNAPSHOT_INTERVAL
+        if prune_counter >= _PRUNE_INTERVAL:
+            prune_counter = 0
+            try:
+                async with AsyncSessionFactory() as db:
+                    await prune_old_snapshots(db)
+            except Exception as exc:
+                logger.error("Metrics prune error: {}", exc)
+
+
 async def start_metrics_broadcaster() -> None:
     asyncio.create_task(_broadcast_system_metrics_loop())
+    asyncio.create_task(_record_metrics_loop())
 
 
 async def handle_system_websocket(websocket: WebSocket) -> None:

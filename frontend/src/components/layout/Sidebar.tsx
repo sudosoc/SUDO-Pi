@@ -4,6 +4,7 @@ import {
   Cpu, FileText, FolderOpen, GitBranch,
   Home, Package, Settings,
   Shield, Terminal, Users, Wifi, Zap, LogOut, MonitorSmartphone,
+  Network, Flame, Clock, KeyRound, Activity, Bell, HardDrive, Gauge, Monitor,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -29,6 +30,15 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/gpio", icon: GitBranch, label: "GPIO", roles: ["admin", "operator"] },
   { to: "/devices", icon: MonitorSmartphone, label: "Devices" },
   { to: "/logs", icon: FileText, label: "Logs" },
+  { to: "/vpn", icon: Network, label: "VPN", roles: ["admin", "operator"] },
+  { to: "/firewall", icon: Flame, label: "Firewall", roles: ["admin"] },
+  { to: "/cron", icon: Clock, label: "Cron Jobs", roles: ["admin", "operator"] },
+  { to: "/ssh", icon: KeyRound, label: "SSH", roles: ["admin"] },
+  { to: "/metrics", icon: Activity, label: "Metrics" },
+  { to: "/alerts", icon: Bell, label: "Alerts", roles: ["admin"] },
+  { to: "/storage", icon: HardDrive, label: "Storage" },
+  { to: "/speedtest", icon: Gauge, label: "Speed Test" },
+  { to: "/display", icon: Monitor, label: "Display", roles: ["admin", "operator"] },
   { to: "/users", icon: Users, label: "Users", roles: ["admin"] },
   { to: "/security", icon: Shield, label: "Security", roles: ["admin"] },
   { to: "/settings", icon: Settings, label: "Settings", roles: ["admin"] },
