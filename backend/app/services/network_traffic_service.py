@@ -58,31 +58,42 @@ def _parse_arp() -> dict[str, str]:
 
 
 async def ensure_iptables_accounting() -> None:
-    """Create SUDO_PI_ACCT_IN / SUDO_PI_ACCT_OUT chains and wire them into FORWARD if needed."""
+    """Create SUDO_PI_ACCT_IN / SUDO_PI_ACCT_OUT chains and wire them in.
+
+    ACCT_IN matches on destination IP (traffic *to* the client = its download),
+    ACCT_OUT matches on source IP (traffic *from* the client = its upload).
+
+    Jumps are wired into three built-in chains so both routed traffic
+    (FORWARD: client ↔ internet) and local traffic (INPUT/OUTPUT: client ↔
+    the Pi itself — dashboard, DNS, SSH) are counted. A packet traverses
+    either FORWARD or INPUT/OUTPUT, never both, so nothing is double-counted.
+    """
     for chain in ("SUDO_PI_ACCT_IN", "SUDO_PI_ACCT_OUT"):
         code, _, _ = await _run(["sudo", "iptables", "-n", "-L", chain], timeout=5.0)
         if code != 0:
             await _run(["sudo", "iptables", "-N", chain], timeout=5.0)
             logger.info("Created iptables chain {}", chain)
 
-    # Wire into FORWARD only if not already present
-    code, out, _ = await _run(["sudo", "iptables", "-n", "-L", "FORWARD"], timeout=5.0)
-    if "SUDO_PI_ACCT_IN" not in out:
-        await _run(
-            ["sudo", "iptables", "-I", "FORWARD", "1", "-j", "SUDO_PI_ACCT_IN"],
-            timeout=5.0,
-        )
-        logger.info("Inserted SUDO_PI_ACCT_IN jump into FORWARD chain")
+    # (builtin chain, accounting chain to jump to)
+    jumps = [
+        ("FORWARD", "SUDO_PI_ACCT_IN"),   # internet → client
+        ("FORWARD", "SUDO_PI_ACCT_OUT"),  # client → internet
+        ("OUTPUT",  "SUDO_PI_ACCT_IN"),   # Pi → client (client download from Pi)
+        ("INPUT",   "SUDO_PI_ACCT_OUT"),  # client → Pi (client upload to Pi)
+    ]
+    for builtin, acct in jumps:
+        code, out, _ = await _run(["sudo", "iptables", "-n", "-L", builtin], timeout=5.0)
+        if acct not in out:
+            await _run(
+                ["sudo", "iptables", "-I", builtin, "1", "-j", acct],
+                timeout=5.0,
+            )
+            logger.info("Inserted {} jump into {} chain", acct, builtin)
 
-    if "SUDO_PI_ACCT_OUT" not in out:
-        await _run(
-            ["sudo", "iptables", "-I", "FORWARD", "2", "-j", "SUDO_PI_ACCT_OUT"],
-            timeout=5.0,
-        )
-        logger.info("Inserted SUDO_PI_ACCT_OUT jump into FORWARD chain")
-
-    # Ensure per-IP rules exist for the AP subnet range
-    leases = _parse_leases()
+    # Ensure per-IP rules exist for the AP subnet range.
+    # Union of dnsmasq leases and the ARP table so statically-configured
+    # clients (no DHCP lease) are counted too.
+    known_ips = set(_parse_leases()) | set(_parse_arp())
     code_in, out_in, _ = await _run(
         ["sudo", "iptables", "-nxvL", "SUDO_PI_ACCT_IN"], timeout=5.0
     )
@@ -90,7 +101,7 @@ async def ensure_iptables_accounting() -> None:
         ["sudo", "iptables", "-nxvL", "SUDO_PI_ACCT_OUT"], timeout=5.0
     )
 
-    for ip in leases:
+    for ip in known_ips:
         if not ip.startswith(AP_SUBNET_PREFIX):
             continue
         if ip not in out_in:

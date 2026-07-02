@@ -35,7 +35,21 @@ type SortDir  = "asc" | "desc";
 const processApi = {
   list: async (): Promise<Process[]> => {
     const { data } = await apiClient.get("/processes");
-    return Array.isArray(data) ? data : [];
+    if (!Array.isArray(data)) return [];
+    // Normalize every entry — tolerate alternate field names from older
+    // backend builds (cpu_percent/memory_percent) and missing fields.
+    return data.map((p: Record<string, unknown>) => ({
+      pid:     Number(p.pid) || 0,
+      user:    String(p.user ?? p.username ?? "?"),
+      cpu:     Number(p.cpu ?? p.cpu_percent) || 0,
+      mem:     Number(p.mem ?? p.memory_percent) || 0,
+      vsz:     Number(p.vsz) || 0,
+      rss:     Number(p.rss) || 0,
+      stat:    String(p.stat ?? p.status ?? ""),
+      started: String(p.started ?? ""),
+      time:    String(p.time ?? ""),
+      command: String(p.command ?? p.name ?? ""),
+    }));
   },
   kill: async (pid: number, signal = 15): Promise<void> => {
     await apiClient.post(`/processes/${pid}/kill`, { signal });

@@ -296,7 +296,7 @@ export default function NetworkTrafficPage() {
       </Card>
 
       <p className="text-xs text-muted-foreground text-center">
-        Auto-refreshes every 5 seconds · Counters measure traffic through the FORWARD chain since last reset
+        Auto-refreshes every 5 seconds · Counters include both internet traffic and traffic to the Pi itself, since last reset
       </p>
     </div>
   );
