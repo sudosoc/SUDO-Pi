@@ -395,26 +395,33 @@ enable_ip_forwarding() {
     success "IP forwarding enabled"
 }
 
-# ─── Configure NAT (AP clients share wlan1 internet) ─────────────────────────
+# ─── Configure NAT (AP clients share whatever interface has upstream internet) ─
+# Does NOT hard-code an interface: scripts/internet-sharing.sh detects the
+# upstream link from the default route (eth0, wlan1, usb0, ...) every time it
+# runs. A boot-time systemd unit + a NetworkManager dispatcher hook keep it
+# re-applied automatically — no manual step needed after ethernet is plugged
+# in or the Wi-Fi upstream reconnects with a new lease.
 configure_nat() {
-    info "Configuring iptables NAT for AP clients..."
+    info "Installing internet-sharing auto-apply..."
+    chmod +x "${REPO_DIR}/scripts/internet-sharing.sh"
 
-    # Flush existing MASQUERADE rules for this subnet to avoid duplicates
-    iptables -t nat -D POSTROUTING -s "${AP_NETWORK}" -o "${INET_INTERFACE}" -j MASQUERADE 2>/dev/null || true
-    iptables -t nat -A POSTROUTING -s "${AP_NETWORK}" -o "${INET_INTERFACE}" -j MASQUERADE
+    cp "${REPO_DIR}/configs/systemd/sudo-pi-internet-sharing.service" \
+       /etc/systemd/system/sudo-pi-internet-sharing.service
+    systemctl daemon-reload
+    systemctl enable sudo-pi-internet-sharing.service
+    ROLLBACK_STEPS+=("systemctl disable sudo-pi-internet-sharing.service" "rm -f /etc/systemd/system/sudo-pi-internet-sharing.service")
 
-    iptables -D FORWARD -i "${AP_INTERFACE}" -o "${INET_INTERFACE}" -j ACCEPT 2>/dev/null || true
-    iptables -A FORWARD -i "${AP_INTERFACE}" -o "${INET_INTERFACE}" -j ACCEPT
-    iptables -D FORWARD -i "${INET_INTERFACE}" -o "${AP_INTERFACE}" -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
-    iptables -A FORWARD -i "${INET_INTERFACE}" -o "${AP_INTERFACE}" -m state --state RELATED,ESTABLISHED -j ACCEPT
+    mkdir -p /etc/NetworkManager/dispatcher.d
+    cp "${REPO_DIR}/configs/networkmanager/99-sudo-pi-sharing" \
+       /etc/NetworkManager/dispatcher.d/99-sudo-pi-sharing
+    chmod 755 /etc/NetworkManager/dispatcher.d/99-sudo-pi-sharing
+    ROLLBACK_STEPS+=("rm -f /etc/NetworkManager/dispatcher.d/99-sudo-pi-sharing")
 
-    # Persist across reboots
-    if command -v iptables-save &>/dev/null; then
-        iptables-save > /etc/iptables/rules.v4 2>/dev/null || \
-        iptables-save > /etc/iptables.rules 2>/dev/null || true
+    if bash "${REPO_DIR}/scripts/internet-sharing.sh"; then
+        success "Internet sharing applied and will auto-reapply on boot/link changes"
+    else
+        warn "No upstream internet detected yet — this is fine, sharing auto-applies the moment the Pi gets a connection (ethernet or a second Wi-Fi adapter)"
     fi
-
-    success "NAT rules applied"
 }
 
 # ─── Configure nginx ──────────────────────────────────────────────────────────

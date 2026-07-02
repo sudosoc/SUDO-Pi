@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# =============================================================================
+# NetworkManager dispatcher hook — re-applies internet sharing whenever an
+# upstream-capable interface changes state.
+#
+# Why this exists: the boot-time systemd unit only runs once at startup. If
+# the Pi boots before ethernet is plugged in, or the Wi-Fi upstream link
+# drops and reconnects with a new DHCP lease, sharing would otherwise stay
+# broken (or keep NAT'ing through a dead interface) until someone manually
+# re-runs the script or restarts the Pi. NetworkManager calls every script in
+# /etc/NetworkManager/dispatcher.d/ on link state changes — this hooks that.
+#
+# Install: copied to /etc/NetworkManager/dispatcher.d/99-sudo-pi-sharing by
+# scripts/deploy.sh and scripts/setup.sh, made executable (NM requires that).
+#
+# Args passed by NetworkManager: $1 = interface name, $2 = event
+# (up|down|dhcp4-change|dhcp6-change|connectivity-change|...)
+# =============================================================================
+
+IFACE="$1"
+EVENT="$2"
+
+# Ignore the AP interface — it never carries upstream internet and
+# shouldn't trigger a rebuild of NAT rules pointed at itself.
+[[ "$IFACE" == "wlan0" ]] && exit 0
+
+case "$EVENT" in
+    up|dhcp4-change|dhcp6-change)
+        /usr/bin/env bash /SUDO-Pi/scripts/internet-sharing.sh >> /var/log/sudo-pi-sharing.log 2>&1
+        ;;
+    *)
+        exit 0
+        ;;
+esac

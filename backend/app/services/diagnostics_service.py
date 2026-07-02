@@ -166,7 +166,7 @@ async def _check_network() -> list[dict]:
             "Network",
             "warn",
             f"upstream {st['upstream_interface']} present but sharing is off",
-            "Open Network → Internet Sharing → Enable, or run scripts/fix-internet-sharing.sh",
+            "Open Network → Internet Sharing → Enable, or run: sudo bash /SUDO-Pi/scripts/internet-sharing.sh",
         )
     ]
 

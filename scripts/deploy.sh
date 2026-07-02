@@ -11,7 +11,8 @@
 #   3. Sync the backend into /opt/sudo-pi/backend (where systemd runs it from)
 #   4. Install any new Python dependencies into the venv
 #   5. Refresh the Nginx site config
-#   6. Restart backend + reload Nginx
+#   6. Install/refresh internet-sharing auto-apply (boot unit + NM hook)
+#   7. Restart backend + reload Nginx
 # =============================================================================
 set -euo pipefail
 
@@ -72,7 +73,29 @@ fi
 nginx -t
 ok "Nginx config valid"
 
-# ── 6. Restart services ──────────────────────────────────────────────────────
+# ── 6. Internet sharing: auto-apply on boot + on link changes ───────────────
+info "Installing internet-sharing auto-apply..."
+chmod +x "${REPO_DIR}/scripts/internet-sharing.sh"
+
+cp "${REPO_DIR}/configs/systemd/sudo-pi-internet-sharing.service" \
+   /etc/systemd/system/sudo-pi-internet-sharing.service
+systemctl daemon-reload
+systemctl enable sudo-pi-internet-sharing.service >/dev/null 2>&1 || true
+
+mkdir -p /etc/NetworkManager/dispatcher.d
+cp "${REPO_DIR}/configs/networkmanager/99-sudo-pi-sharing" \
+   /etc/NetworkManager/dispatcher.d/99-sudo-pi-sharing
+chmod 755 /etc/NetworkManager/dispatcher.d/99-sudo-pi-sharing
+ok "Boot unit + NetworkManager hook installed (re-applies on every link change)"
+
+info "Applying internet sharing now..."
+if bash "${REPO_DIR}/scripts/internet-sharing.sh"; then
+    ok "Internet sharing active"
+else
+    warn "No upstream internet detected yet — sharing will auto-apply once the Pi gets a connection (ethernet or a second Wi-Fi adapter)"
+fi
+
+# ── 7. Restart services ──────────────────────────────────────────────────────
 info "Restarting backend..."
 systemctl restart sudo-pi-backend
 sleep 2
@@ -87,7 +110,7 @@ info "Reloading Nginx..."
 systemctl reload nginx
 ok "Nginx reloaded"
 
-# ── 7. Health check ──────────────────────────────────────────────────────────
+# ── 8. Health check ──────────────────────────────────────────────────────────
 info "Verifying backend health..."
 if curl -sk --max-time 5 "https://127.0.0.1/api/v1/health" | grep -q '"status"'; then
     ok "Health check passed"

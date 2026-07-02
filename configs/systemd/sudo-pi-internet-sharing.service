@@ -1,0 +1,19 @@
+[Unit]
+Description=SUDO-Pi internet sharing (NAT AP clients through the upstream link)
+After=network-online.target NetworkManager.service
+Wants=network-online.target
+# Don't block the rest of boot on this — the dashboard must come up even
+# if the Pi has no internet yet; the NetworkManager dispatcher hook (see
+# configs/networkmanager/99-sudo-pi-sharing) re-applies once a link appears.
+DefaultDependencies=yes
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/env bash /SUDO-Pi/scripts/internet-sharing.sh
+# Non-zero exit (no upstream yet) must not be treated as a boot failure —
+# the dispatcher hook will retry once an interface actually comes up.
+SuccessExitStatus=0 1
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target
