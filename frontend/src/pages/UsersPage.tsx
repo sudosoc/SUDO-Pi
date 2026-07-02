@@ -25,7 +25,7 @@ export default function UsersPage() {
     queryKey: ["users"],
     queryFn: async () => {
       const { data } = await apiClient.get("/users");
-      return data;
+      return data && typeof data === "object" ? data : { items: [], total: 0 };
     },
   });
 

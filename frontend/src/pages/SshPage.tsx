@@ -73,7 +73,7 @@ const sshApi = {
   },
   getKeys: async (user: string): Promise<AuthorizedKey[]> => {
     const { data } = await apiClient.get(`/ssh/keys/${encodeURIComponent(user)}`);
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   addKey: async (user: string, key: string): Promise<void> => {
     await apiClient.post(`/ssh/keys/${encodeURIComponent(user)}`, { key });
@@ -87,7 +87,7 @@ const sshApi = {
   },
   getSessions: async (): Promise<SshSession[]> => {
     const { data } = await apiClient.get("/ssh/sessions");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
 };
 

@@ -19,7 +19,7 @@ export default function PackagesPage() {
     queryKey: ["packages"],
     queryFn: async () => {
       const { data } = await apiClient.get("/packages");
-      return data;
+      return data && typeof data === "object" ? data : { items: [], total: 0 };
     },
   });
 

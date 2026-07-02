@@ -91,19 +91,19 @@ function barColor(pct: number) {
 const storageApi = {
   getDevices: async (): Promise<BlockDevice[]> => {
     const { data } = await apiClient.get("/storage/devices");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   getUsb: async (): Promise<UsbDevice[]> => {
     const { data } = await apiClient.get("/storage/usb");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   getUsage: async (): Promise<DiskUsage[]> => {
     const { data } = await apiClient.get("/storage/usage");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   getIoStats: async (): Promise<IoStat[]> => {
     const { data } = await apiClient.get("/storage/io-stats");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   mount: async (device: string, mountpoint: string, fstype?: string): Promise<void> => {
     await apiClient.post("/storage/mount", { device, mountpoint, fstype });

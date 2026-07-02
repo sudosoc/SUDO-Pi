@@ -33,6 +33,7 @@ const NetworkTrafficPage  = lazy(() => import("@/pages/NetworkTrafficPage"));
 const DockerComposePage   = lazy(() => import("@/pages/DockerComposePage"));
 const AppStorePage        = lazy(() => import("@/pages/AppStorePage"));
 const BackupPage          = lazy(() => import("@/pages/BackupPage"));
+const DiagnosticsPage     = lazy(() => import("@/pages/DiagnosticsPage"));
 
 function ProtectedLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -85,6 +86,7 @@ export default function App() {
             <Route path="/docker/compose" element={<DockerComposePage />} />
             <Route path="/app-store"      element={<AppStorePage />} />
             <Route path="/backup"         element={<BackupPage />} />
+          <Route path="/diagnostics"    element={<DiagnosticsPage />} />
             <Route element={<AdminGuard />}>
               <Route path="/users"    element={<UsersPage />} />
               <Route path="/security" element={<SecurityPage />} />

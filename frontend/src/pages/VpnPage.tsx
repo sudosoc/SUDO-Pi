@@ -45,7 +45,7 @@ interface VpnIp {
 const vpnApi = {
   getWireguard: async (): Promise<WgTunnel[]> => {
     const { data } = await apiClient.get("/vpn/wireguard");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   wgUp: async (name: string): Promise<void> => {
     await apiClient.post(`/vpn/wireguard/${encodeURIComponent(name)}/up`);
@@ -61,7 +61,7 @@ const vpnApi = {
   },
   getOpenvpn: async (): Promise<OvpnConfig[]> => {
     const { data } = await apiClient.get("/vpn/openvpn");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   ovpnConnect: async (name: string): Promise<void> => {
     await apiClient.post(`/vpn/openvpn/${encodeURIComponent(name)}/connect`);

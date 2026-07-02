@@ -36,6 +36,7 @@ from app.api.v1 import (
     ws_metrics,
     backup,
     rclone,
+    diagnostics,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -73,3 +74,4 @@ api_router.include_router(uptime.router)
 api_router.include_router(ws_metrics.router)
 api_router.include_router(backup.router)
 api_router.include_router(rclone.router)
+api_router.include_router(diagnostics.router)

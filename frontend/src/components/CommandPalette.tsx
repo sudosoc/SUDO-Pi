@@ -4,7 +4,7 @@ import {
   Home, Cpu, Terminal, FolderOpen, Wifi, Package, Box, Bluetooth,
   GitBranch, FileText, Network, Flame, Clock, KeyRound, Activity,
   Bell, HardDrive, Monitor, Users, Shield, Settings, MonitorSmartphone,
-  Server, Search, ArrowRight, Loader2,
+  Server, Search, ArrowRight, Loader2, Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/api/client";
@@ -77,6 +77,7 @@ const ENTRIES: PaletteEntry[] = [
   { to: "/users",     label: "Users",           icon: Users,             tags: ["accounts", "roles", "admin"] },
   { to: "/security",  label: "Security",        icon: Shield,            tags: ["fail2ban", "hardening"] },
   { to: "/settings",  label: "Settings",        icon: Settings,          tags: ["config", "theme", "preferences"] },
+  { to: "/diagnostics", label: "Diagnostics",   icon: Stethoscope,       tags: ["health", "self-check", "status", "troubleshoot"] },
 ];
 
 // ---------------------------------------------------------------------------

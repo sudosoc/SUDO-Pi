@@ -45,7 +45,25 @@ function processQueue(error: Error | null) {
 }
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Guard against the SPA catch-all: a stale or misconfigured backend can
+    // answer an unknown /api/v1/* path with index.html + 200. Pages then get
+    // an HTML string where they expect JSON and crash on .map/.filter/.toFixed.
+    // Detect it here and turn it into a clean rejection so React Query surfaces
+    // an error state instead of poisoning the component.
+    const contentType = String(response.headers?.["content-type"] ?? "");
+    if (
+      contentType.includes("text/html") ||
+      (typeof response.data === "string" && response.data.trimStart().startsWith("<!"))
+    ) {
+      return Promise.reject(
+        new Error(
+          "The API returned an HTML page instead of data. The backend is likely out of date — run scripts/deploy.sh on the Pi."
+        )
+      );
+    }
+    return response;
+  },
   async (error: AxiosError) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & { _retry?: boolean };
 

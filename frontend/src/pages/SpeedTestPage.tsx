@@ -31,7 +31,7 @@ interface SpeedResult {
 const speedApi = {
   getHistory: async (): Promise<SpeedResult[]> => {
     const { data } = await apiClient.get("/speedtest/history");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   runTest: async (): Promise<SpeedResult> => {
     const { data } = await apiClient.post("/speedtest/run");

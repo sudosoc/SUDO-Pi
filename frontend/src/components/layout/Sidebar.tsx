@@ -5,7 +5,7 @@ import {
   Home, Package, Settings,
   Shield, Terminal, Users, Wifi, Zap, LogOut, MonitorSmartphone,
   Network, Flame, Clock, KeyRound, Activity, Bell, HardDrive,
-  Monitor, Server, Gauge, BarChart2, Layers, Store, Archive,
+  Monitor, Server, Gauge, BarChart2, Layers, Store, Archive, Stethoscope,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -48,6 +48,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/display",    icon: Monitor,         label: "Display",    roles: ["admin", "operator"] },
   { to: "/users",      icon: Users,           label: "Users",      roles: ["admin"] },
   { to: "/security",   icon: Shield,          label: "Security",   roles: ["admin"] },
+  { to: "/diagnostics", icon: Stethoscope,    label: "Diagnostics", roles: ["admin", "operator"] },
   { to: "/settings",   icon: Settings,        label: "Settings",   roles: ["admin"] },
 ];
 

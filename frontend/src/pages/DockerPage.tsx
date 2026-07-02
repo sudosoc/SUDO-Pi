@@ -434,7 +434,7 @@ export default function DockerPage() {
     queryKey: ["docker-containers"],
     queryFn: async () => {
       const { data } = await apiClient.get("/docker/containers");
-      return data;
+      return Array.isArray(data) ? data : [];
     },
     refetchInterval: 10000,
   });
@@ -443,7 +443,7 @@ export default function DockerPage() {
     queryKey: ["docker-images"],
     queryFn: async () => {
       const { data } = await apiClient.get("/docker/images");
-      return data;
+      return Array.isArray(data) ? data : [];
     },
   });
 

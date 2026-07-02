@@ -30,6 +30,7 @@ const ROUTE_LABELS: Record<string, string> = {
   "users":           "Users",
   "security":        "Security",
   "settings":        "Settings",
+  "diagnostics":     "System Diagnostics",
 };
 
 interface BreadcrumbSegment {
