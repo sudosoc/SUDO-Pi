@@ -5,7 +5,6 @@ import { Header } from "./Header";
 import { StatusBar } from "./StatusBar";
 import { FloatingTerminal } from "./FloatingTerminal";
 import { OnboardingWizard } from "./OnboardingWizard";
-import { Breadcrumb } from "./Breadcrumb";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useSystemMetrics } from "@/hooks/useSystemMetrics";
@@ -93,7 +92,6 @@ export function MainLayout() {
         <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
           <Header title={title} onOpenPalette={() => setPaletteOpen(true)} />
-          <Breadcrumb />
           <main className="flex-1 overflow-auto">
             <div key={location.pathname} className="page-transition h-full">
               <ErrorBoundary>

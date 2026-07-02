@@ -97,7 +97,7 @@ export function StatusBar() {
     : "text-cyan-400";
 
   return (
-    <div className="h-7 flex items-center px-4 gap-4 bg-card border-t border-border text-[11px] font-mono shrink-0">
+    <div className="h-7 flex items-center px-4 gap-4 bg-card/60 border-t border-border/70 text-[11px] font-mono shrink-0">
       {/* Left: stat pills */}
       <div className="flex items-center gap-3">
         <StatPill
