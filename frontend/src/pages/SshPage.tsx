@@ -1,10 +1,13 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Key, Plus, Trash2, RefreshCw, Terminal, Users, Settings2,
+  Key, KeyRound, Plus, Trash2, RefreshCw, Terminal, Users, Settings2,
   Copy, CheckCheck, AlertTriangle, Power,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHelp } from "@/components/ui/page-help";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -380,14 +383,13 @@ function KeysTab() {
         </CardHeader>
         <CardContent>
           {isLoading ? (
-            <div className="space-y-2">
-              {[1, 2].map((i) => <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />)}
-            </div>
+            <SkeletonList count={3} />
           ) : !keys?.length ? (
-            <div className="flex flex-col items-center py-12 text-muted-foreground">
-              <Key className="w-8 h-8 mb-2 opacity-30" />
-              <p className="text-sm">No authorized keys for {targetUser}</p>
-            </div>
+            <EmptyState
+              icon={KeyRound}
+              title="No authorized keys"
+              description="Add a public key to enable key-based login."
+            />
           ) : (
             <ScrollArea className="max-h-[28rem]">
               <div className="space-y-2 pr-1">
@@ -449,14 +451,9 @@ function SessionsTab() {
       </CardHeader>
       <CardContent>
         {isLoading ? (
-          <div className="space-y-2">
-            {[1, 2].map((i) => <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />)}
-          </div>
+          <SkeletonList count={3} />
         ) : !sessions?.length ? (
-          <div className="flex flex-col items-center py-16 text-muted-foreground">
-            <Users className="w-10 h-10 mb-3 opacity-30" />
-            <p className="text-sm">No active SSH sessions</p>
-          </div>
+          <EmptyState icon={Users} title="No active sessions" />
         ) : (
           <ScrollArea className="max-h-[32rem]">
             <div className="space-y-2 pr-1">
@@ -587,20 +584,31 @@ export default function SshPage() {
       </div>
 
       <Tabs defaultValue="config">
-        <TabsList>
-          <TabsTrigger value="config">
-            <Settings2 className="w-3.5 h-3.5 mr-1.5" />
-            Config
-          </TabsTrigger>
-          <TabsTrigger value="keys">
-            <Key className="w-3.5 h-3.5 mr-1.5" />
-            Authorized Keys
-          </TabsTrigger>
-          <TabsTrigger value="sessions">
-            <Users className="w-3.5 h-3.5 mr-1.5" />
-            Sessions
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="config">
+              <Settings2 className="w-3.5 h-3.5 mr-1.5" />
+              Config
+            </TabsTrigger>
+            <TabsTrigger value="keys">
+              <Key className="w-3.5 h-3.5 mr-1.5" />
+              Authorized Keys
+            </TabsTrigger>
+            <TabsTrigger value="sessions">
+              <Users className="w-3.5 h-3.5 mr-1.5" />
+              Sessions
+            </TabsTrigger>
+          </TabsList>
+          <PageHelp
+            title="SSH"
+            points={[
+              "Manage authorized SSH keys per user",
+              "Generate new keypairs on the Pi",
+              "Monitor and terminate active SSH sessions",
+              "Harden sshd configuration",
+            ]}
+          />
+        </div>
 
         <TabsContent value="config" className="mt-4">
           <Card>

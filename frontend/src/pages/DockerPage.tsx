@@ -1,11 +1,15 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Play, Square, RefreshCw, Trash2, Terminal,
-  X, Cpu, MemoryStick, AlertCircle,
+  X, Cpu, MemoryStick, AlertCircle, Box, Layers,
 } from "lucide-react";
 import { apiClient, getApiError } from "@/api/client";
 import { Card, CardContent } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { PageHelp } from "@/components/ui/page-help";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -430,6 +434,7 @@ function ContainerRow({ c }: { c: Container }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DockerPage() {
+  const navigate = useNavigate();
   const { data: containers, isLoading: loadingContainers, refetch: refetchContainers } = useQuery({
     queryKey: ["docker-containers"],
     queryFn: async () => {
@@ -450,10 +455,21 @@ export default function DockerPage() {
   return (
     <div className="p-6 space-y-4">
       <Tabs defaultValue="containers">
-        <TabsList>
-          <TabsTrigger value="containers">Containers</TabsTrigger>
-          <TabsTrigger value="images">Images</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="containers">Containers</TabsTrigger>
+            <TabsTrigger value="images">Images</TabsTrigger>
+          </TabsList>
+          <PageHelp
+            title="Docker"
+            points={[
+              "Start, stop and restart containers",
+              "Stream live logs from any container",
+              "Set CPU and memory limits per container",
+              "Remove unused containers and images",
+            ]}
+          />
+        </div>
 
         <TabsContent value="containers" className="mt-4">
           <div className="flex items-center gap-2 mb-4">
@@ -463,41 +479,35 @@ export default function DockerPage() {
           </div>
           <Card>
             <CardContent className="p-0">
-              <ScrollArea className="h-[calc(100vh-280px)]">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-card border-b border-border">
-                    <tr>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Name</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Image</th>
-                      <th className="text-center px-4 py-2 text-muted-foreground font-medium text-xs">Status</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs hidden md:table-cell">Ports</th>
-                      <th className="w-36 px-4 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loadingContainers
-                      ? Array.from({ length: 5 }).map((_, i) => (
-                          <tr key={i} className="border-b border-border/50">
-                            {Array.from({ length: 5 }).map((_, j) => (
-                              <td key={j} className="px-4 py-2">
-                                <div className="h-4 bg-muted rounded animate-pulse" />
-                              </td>
-                            ))}
-                          </tr>
-                        ))
-                      : (containers ?? []).map((c: Container) => (
-                          <ContainerRow key={c.id} c={c} />
-                        ))}
-                    {!loadingContainers && !containers?.length && (
+              {loadingContainers ? (
+                <SkeletonTable rows={6} cols={5} />
+              ) : !containers?.length ? (
+                <EmptyState
+                  icon={Box}
+                  title="No containers yet"
+                  description="Install an app from the App Store or create a compose stack."
+                  action={{ label: "Open App Store", onClick: () => navigate("/app-store") }}
+                />
+              ) : (
+                <ScrollArea className="h-[calc(100vh-280px)]">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-card border-b border-border">
                       <tr>
-                        <td colSpan={5} className="text-center py-12 text-muted-foreground">
-                          No containers
-                        </td>
+                        <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Name</th>
+                        <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Image</th>
+                        <th className="text-center px-4 py-2 text-muted-foreground font-medium text-xs">Status</th>
+                        <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs hidden md:table-cell">Ports</th>
+                        <th className="w-36 px-4 py-2" />
                       </tr>
-                    )}
-                  </tbody>
-                </table>
-              </ScrollArea>
+                    </thead>
+                    <tbody>
+                      {containers.map((c: Container) => (
+                        <ContainerRow key={c.id} c={c} />
+                      ))}
+                    </tbody>
+                  </table>
+                </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -510,28 +520,23 @@ export default function DockerPage() {
           </div>
           <Card>
             <CardContent className="p-0">
-              <ScrollArea className="h-[calc(100vh-280px)]">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-card border-b border-border">
-                    <tr>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Repository</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Tag</th>
-                      <th className="text-right px-4 py-2 text-muted-foreground font-medium text-xs">Size</th>
-                      <th className="w-12 px-4 py-2" />
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loadingImages
-                      ? Array.from({ length: 5 }).map((_, i) => (
-                          <tr key={i} className="border-b border-border/50">
-                            {Array.from({ length: 4 }).map((_, j) => (
-                              <td key={j} className="px-4 py-2">
-                                <div className="h-4 bg-muted rounded animate-pulse" />
-                              </td>
-                            ))}
-                          </tr>
-                        ))
-                      : (images ?? []).map((img: { id: string; repo_tags: string[]; size: number }) => {
+              {loadingImages ? (
+                <SkeletonTable rows={6} cols={4} />
+              ) : !images?.length ? (
+                <EmptyState icon={Layers} title="No images pulled" />
+              ) : (
+                <ScrollArea className="h-[calc(100vh-280px)]">
+                  <table className="w-full text-sm">
+                    <thead className="sticky top-0 bg-card border-b border-border">
+                      <tr>
+                        <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Repository</th>
+                        <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Tag</th>
+                        <th className="text-right px-4 py-2 text-muted-foreground font-medium text-xs">Size</th>
+                        <th className="w-12 px-4 py-2" />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {images.map((img: { id: string; repo_tags: string[]; size: number }) => {
                           const tag = img.repo_tags?.[0] ?? "<none>";
                           const [repo, tagPart] = tag.split(":");
                           return (
@@ -557,16 +562,10 @@ export default function DockerPage() {
                             </tr>
                           );
                         })}
-                    {!loadingImages && !images?.length && (
-                      <tr>
-                        <td colSpan={4} className="text-center py-12 text-muted-foreground">
-                          No images
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </ScrollArea>
+                    </tbody>
+                  </table>
+                </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -2,10 +2,13 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Shield, ShieldCheck, ShieldOff, Plus, Trash2,
-  ChevronUp, ChevronDown, RefreshCw, Upload, X,
+  ChevronUp, ChevronDown, RefreshCw, Upload, X, Network,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHelp } from "@/components/ui/page-help";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -526,16 +529,27 @@ export default function VpnPage() {
 
       {/* Tabs */}
       <Tabs defaultValue="wireguard">
-        <TabsList>
-          <TabsTrigger value="wireguard">
-            <Shield className="w-3.5 h-3.5 mr-1.5" />
-            WireGuard
-          </TabsTrigger>
-          <TabsTrigger value="openvpn">
-            <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
-            OpenVPN
-          </TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="wireguard">
+              <Shield className="w-3.5 h-3.5 mr-1.5" />
+              WireGuard
+            </TabsTrigger>
+            <TabsTrigger value="openvpn">
+              <ShieldCheck className="w-3.5 h-3.5 mr-1.5" />
+              OpenVPN
+            </TabsTrigger>
+          </TabsList>
+          <PageHelp
+            title="VPN"
+            points={[
+              "Manage WireGuard and OpenVPN tunnels",
+              "Import configs and generate client QR codes",
+              "Toggle tunnels up or down",
+              "See the Pi's public IP and VPN status",
+            ]}
+          />
+        </div>
 
         {/* ── WireGuard Tab ─────────────────────────────────────── */}
         <TabsContent value="wireguard" className="mt-4">
@@ -558,17 +572,14 @@ export default function VpnPage() {
             </CardHeader>
             <CardContent>
               {wgLoading ? (
-                <div className="space-y-3">
-                  {[1, 2].map((i) => (
-                    <div key={i} className="h-24 rounded-lg bg-muted animate-pulse" />
-                  ))}
-                </div>
+                <SkeletonList count={3} />
               ) : !wgTunnels?.length ? (
-                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                  <Shield className="w-10 h-10 mb-3 opacity-30" />
-                  <p className="text-sm">No WireGuard tunnels configured</p>
-                  <p className="text-xs mt-1">Import a .conf file to get started</p>
-                </div>
+                <EmptyState
+                  icon={Network}
+                  title="No WireGuard tunnels"
+                  description="Import a .conf file to get started."
+                  action={{ label: "Create tunnel", onClick: () => setImportModal("wireguard") }}
+                />
               ) : (
                 <ScrollArea className="max-h-[32rem]">
                   <div className="space-y-3 pr-1">
@@ -614,17 +625,14 @@ export default function VpnPage() {
             </CardHeader>
             <CardContent>
               {ovpnLoading ? (
-                <div className="space-y-3">
-                  {[1, 2].map((i) => (
-                    <div key={i} className="h-16 rounded-lg bg-muted animate-pulse" />
-                  ))}
-                </div>
+                <SkeletonList count={3} />
               ) : !ovpnConfigs?.length ? (
-                <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                  <ShieldCheck className="w-10 h-10 mb-3 opacity-30" />
-                  <p className="text-sm">No OpenVPN configs found</p>
-                  <p className="text-xs mt-1">Import a .ovpn file to get started</p>
-                </div>
+                <EmptyState
+                  icon={Network}
+                  title="No OpenVPN configs"
+                  description="Import a .ovpn file to get started."
+                  action={{ label: "Import config", onClick: () => setImportModal("openvpn") }}
+                />
               ) : (
                 <ScrollArea className="max-h-[32rem]">
                   <div className="space-y-2 pr-1">

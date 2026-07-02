@@ -1,6 +1,9 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Bluetooth, BluetoothOff, RefreshCw, Link2, Link2Off, Trash2 } from "lucide-react";
+import { Bluetooth, RefreshCw, Link2, Link2Off, Trash2 } from "lucide-react";
 import { apiClient } from "@/api/client";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHelp } from "@/components/ui/page-help";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -57,10 +60,20 @@ export default function BluetoothPage() {
   return (
     <div className="p-6 space-y-4">
       <Tabs defaultValue="paired">
-        <TabsList>
-          <TabsTrigger value="paired">Paired Devices</TabsTrigger>
-          <TabsTrigger value="scan">Scan</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="paired">Paired Devices</TabsTrigger>
+            <TabsTrigger value="scan">Scan</TabsTrigger>
+          </TabsList>
+          <PageHelp
+            title="Bluetooth"
+            points={[
+              "Scan for nearby Bluetooth devices",
+              "Pair, connect and remove devices",
+              "See signal strength and device type",
+            ]}
+          />
+        </div>
 
         <TabsContent value="paired" className="mt-4">
           <div className="flex items-center gap-2 mb-4">
@@ -70,16 +83,19 @@ export default function BluetoothPage() {
           </div>
           <Card>
             <CardContent className="p-0">
+              {isLoading ? (
+                <SkeletonList count={4} />
+              ) : !devices?.length ? (
+                <EmptyState
+                  icon={Bluetooth}
+                  title="No devices found"
+                  description="Run a scan to discover nearby Bluetooth devices."
+                  action={{ label: "Scan now", onClick: () => startScan() }}
+                />
+              ) : (
               <ScrollArea className="h-96">
                 <div className="divide-y divide-border">
-                  {isLoading
-                    ? Array.from({ length: 3 }).map((_, i) => (
-                        <div key={i} className="px-4 py-3 flex items-center justify-between">
-                          <div className="h-10 w-48 bg-muted rounded animate-pulse" />
-                          <div className="h-8 w-24 bg-muted rounded animate-pulse" />
-                        </div>
-                      ))
-                    : (devices ?? []).map((dev: { mac: string; name: string; connected: boolean; rssi: number; type: string }) => (
+                  {devices.map((dev: { mac: string; name: string; connected: boolean; rssi: number; type: string }) => (
                         <div key={dev.mac} className="px-4 py-3 flex items-center justify-between hover:bg-secondary/20">
                           <div className="flex items-center gap-3">
                             <div className={cn(
@@ -130,14 +146,9 @@ export default function BluetoothPage() {
                           </div>
                         </div>
                       ))}
-                  {(!isLoading && !devices?.length) && (
-                    <div className="flex flex-col items-center justify-center py-16 text-muted-foreground">
-                      <BluetoothOff className="w-10 h-10 mb-3 opacity-40" />
-                      <p className="text-sm">No paired devices</p>
-                    </div>
-                  )}
                 </div>
               </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

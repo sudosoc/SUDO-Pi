@@ -1,5 +1,6 @@
 import ReactECharts from "echarts-for-react";
 import { cn } from "@/lib/utils";
+import { useCountUp } from "@/hooks/useCountUp";
 
 interface MetricGaugeProps {
   value: number;
@@ -35,6 +36,7 @@ export function MetricGauge({
   colorThresholds = DEFAULT_THRESHOLDS,
   className,
 }: MetricGaugeProps) {
+  const animatedValue = useCountUp(value);
   const color = getColor(value, colorThresholds);
 
   const option = {
@@ -52,7 +54,7 @@ export function MetricGauge({
           lineStyle: {
             width: 8,
             color: [
-              [value / 100, color],
+              [animatedValue / 100, color],
               [1, "rgba(255,255,255,0.08)"],
             ],
           },
@@ -62,7 +64,7 @@ export function MetricGauge({
         splitLine: { show: false },
         axisLabel: { show: false },
         detail: {
-          valueAnimation: true,
+          valueAnimation: false,
           formatter: `{value}${unit}`,
           color: "#f1f5f9",
           fontSize: 18,
@@ -77,7 +79,7 @@ export function MetricGauge({
           fontFamily: "Inter",
           offsetCenter: [0, "35%"],
         },
-        data: [{ value: Math.round(value), name: label }],
+        data: [{ value: Math.round(animatedValue), name: label }],
       },
     ],
     backgroundColor: "transparent",

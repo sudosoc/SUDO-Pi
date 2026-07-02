@@ -31,6 +31,9 @@ import {
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/components/ui/use-toast";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { PageHelp } from "@/components/ui/page-help";
 
 interface CronJob {
   id: string;
@@ -257,11 +260,21 @@ export default function CronPage() {
   return (
     <div className="p-6 space-y-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-lg font-semibold">Cron Job Manager</h1>
-          <p className="text-sm text-muted-foreground">
-            Manage scheduled tasks via <code className="text-xs">/etc/cron.d/sudo-pi-managed</code>
-          </p>
+        <div className="flex items-center gap-1.5">
+          <div>
+            <h1 className="text-lg font-semibold">Cron Job Manager</h1>
+            <p className="text-sm text-muted-foreground">
+              Manage scheduled tasks via <code className="text-xs">/etc/cron.d/sudo-pi-managed</code>
+            </p>
+          </div>
+          <PageHelp
+            title="Cron Jobs"
+            points={[
+              "Schedule recurring commands with cron syntax",
+              "Enable or disable jobs without deleting them",
+              "See last-run output and next-run time",
+            ]}
+          />
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" onClick={() => refetch()} loading={isLoading}>
@@ -296,6 +309,16 @@ export default function CronPage() {
 
       <Card>
         <CardContent className="p-0">
+          {isLoading ? (
+            <SkeletonTable rows={6} cols={7} />
+          ) : jobs.length === 0 ? (
+            <EmptyState
+              icon={Clock}
+              title="No scheduled jobs"
+              description="Create a job to run commands on a schedule."
+              action={{ label: "New job", onClick: openAdd }}
+            />
+          ) : (
           <ScrollArea className="h-[calc(100vh-300px)]">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-card border-b border-border">
@@ -322,17 +345,7 @@ export default function CronPage() {
                 </tr>
               </thead>
               <tbody>
-                {isLoading
-                  ? Array.from({ length: 5 }).map((_, i) => (
-                      <tr key={i} className="border-b border-border/50">
-                        {Array.from({ length: 7 }).map((_, j) => (
-                          <td key={j} className="px-3 py-3">
-                            <div className="h-4 bg-muted rounded animate-pulse" />
-                          </td>
-                        ))}
-                      </tr>
-                    ))
-                  : jobs.map((job) => (
+                {jobs.map((job) => (
                       <tr
                         key={job.id}
                         className={`border-b border-border/50 hover:bg-secondary/20 ${!job.enabled ? "opacity-50" : ""}`}
@@ -416,17 +429,10 @@ export default function CronPage() {
                         </td>
                       </tr>
                     ))}
-                {!isLoading && jobs.length === 0 && (
-                  <tr>
-                    <td colSpan={7} className="text-center py-12 text-muted-foreground">
-                      <Clock className="w-8 h-8 mx-auto mb-2 opacity-40" />
-                      No cron jobs found
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </ScrollArea>
+          )}
         </CardContent>
       </Card>
 

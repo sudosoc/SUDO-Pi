@@ -1,16 +1,19 @@
 import * as React from "react";
-import type { ToastActionElement, ToastProps } from "./toast";
+import type { ToastProps } from "./toast";
 
-const TOAST_LIMIT = 5;
-const TOAST_REMOVE_DELAY = 5000;
+const TOAST_LIMIT = 4;
+const TOAST_REMOVE_DELAY = 1000;
 
 type ToastVariant = "default" | "destructive" | "success" | "warning";
+
+/** Optional action button rendered inside the toast (e.g. Undo). */
+type ToastActionConfig = { label: string; onClick: () => void };
 
 type ToasterToast = ToastProps & {
   id: string;
   title?: React.ReactNode;
   description?: React.ReactNode;
-  action?: ToastActionElement;
+  action?: ToastActionConfig;
   variant?: ToastVariant;
 };
 
@@ -87,3 +90,4 @@ function useToast() {
 }
 
 export { useToast, toast };
+export type { ToasterToast, ToastActionConfig, ToastVariant };

@@ -2,9 +2,12 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   ShieldCheck, ShieldOff, Trash2, Plus, RefreshCw,
-  ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight,
+  ArrowDownToLine, ArrowUpFromLine, ArrowLeftRight, Flame,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { PageHelp } from "@/components/ui/page-help";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -353,9 +356,19 @@ export default function FirewallPage() {
             <ShieldOff className="w-8 h-8 text-red-400" />
           )}
           <div>
-            <h2 className="text-lg font-semibold">
-              UFW {enabled ? "Enabled" : "Disabled"}
-            </h2>
+            <div className="flex items-center gap-1.5">
+              <h2 className="text-lg font-semibold">
+                UFW {enabled ? "Enabled" : "Disabled"}
+              </h2>
+              <PageHelp
+                title="Firewall"
+                points={[
+                  "Review and manage firewall rules",
+                  "Open or close ports for services",
+                  "Set default policies per chain",
+                ]}
+              />
+            </div>
             <p className="text-sm text-muted-foreground">
               {enabled
                 ? `${status?.rules.length ?? 0} rules active`
@@ -411,11 +424,11 @@ export default function FirewallPage() {
       </div>
 
       {isLoading ? (
-        <div className="space-y-4">
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="h-20 rounded-xl bg-muted animate-pulse" />
-          ))}
-        </div>
+        <Card>
+          <CardContent className="p-0">
+            <SkeletonTable rows={6} cols={5} />
+          </CardContent>
+        </Card>
       ) : status ? (
         <>
           {/* ── Default Policies ──────────────────────────────── */}
@@ -433,10 +446,11 @@ export default function FirewallPage() {
             </CardHeader>
             <CardContent className="p-0">
               {status.rules.length === 0 ? (
-                <div className="flex flex-col items-center justify-center py-12 text-muted-foreground">
-                  <ShieldCheck className="w-8 h-8 mb-2 opacity-30" />
-                  <p className="text-sm">No rules configured</p>
-                </div>
+                <EmptyState
+                  icon={Flame}
+                  title="No custom rules"
+                  description="Traffic follows the default policy until you add rules."
+                />
               ) : (
                 <ScrollArea className="max-h-[28rem]">
                   <table className="w-full text-xs">

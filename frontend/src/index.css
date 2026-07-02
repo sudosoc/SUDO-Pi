@@ -202,6 +202,10 @@
     @apply bg-destructive;
     box-shadow: 0 0 7px hsl(var(--destructive) / 0.65);
   }
+  .status-dot.warning {
+    @apply bg-warning;
+    box-shadow: 0 0 7px hsl(var(--warning) / 0.7);
+  }
 }
 
 /* ── Page transitions ───────────────────────────────────────────────────── */
@@ -238,3 +242,15 @@
 .xterm-viewport { background-color: transparent !important; }
 .terminal-container .xterm { padding: 8px; height: 100%; }
 .terminal-container .xterm-screen { height: 100% !important; }
+
+/* ── Display density ────────────────────────────────────────────────────── */
+/* Compact mode shrinks the rem base so all rem-derived Tailwind spacing and
+   type scales proportionally, plus tightens table rows. */
+[data-density="compact"] {
+  font-size: 14px;
+}
+[data-density="compact"] td,
+[data-density="compact"] th {
+  padding-top: 0.35rem !important;
+  padding-bottom: 0.35rem !important;
+}

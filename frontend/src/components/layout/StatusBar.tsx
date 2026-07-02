@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useSystemStore } from "@/stores/systemStore";
 import { cn } from "@/lib/utils";
+import { useCountUp } from "@/hooks/useCountUp";
 
 function formatBytes(bytes: number): string {
   if (bytes >= 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB/s`;
@@ -78,6 +79,11 @@ export function StatusBar() {
   const ram = stats?.memory.percent ?? null;
   const temp = stats?.temperature.cpu ?? null;
 
+  // Animated display values (hooks must run unconditionally; nulls fall back to 0)
+  const animatedCpu = useCountUp(cpu ?? 0);
+  const animatedRam = useCountUp(ram ?? 0);
+  const animatedTemp = useCountUp(temp ?? 0);
+
   const cpuColor =
     cpu === null ? "text-muted-foreground"
     : cpu > 80 ? "text-red-400"
@@ -102,17 +108,17 @@ export function StatusBar() {
       <div className="flex items-center gap-3">
         <StatPill
           label="CPU"
-          value={cpu !== null ? `${cpu.toFixed(0)}%` : "—"}
+          value={cpu !== null ? `${Math.round(animatedCpu)}%` : "—"}
           color={cpuColor}
         />
         <StatPill
           label="RAM"
-          value={ram !== null ? `${ram.toFixed(0)}%` : "—"}
+          value={ram !== null ? `${Math.round(animatedRam)}%` : "—"}
           color={ramColor}
         />
         <StatPill
           label="Temp"
-          value={temp !== null ? `${temp.toFixed(0)}°C` : "—"}
+          value={temp !== null ? `${Math.round(animatedTemp)}°C` : "—"}
           color={tempColor}
         />
       </div>

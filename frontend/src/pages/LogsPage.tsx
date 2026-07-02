@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Search } from "lucide-react";
+import { RefreshCw, Search, FileText } from "lucide-react";
 import { systemApi } from "@/api/system";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonList } from "@/components/ui/skeleton";
+import { PageHelp } from "@/components/ui/page-help";
 import { apiClient } from "@/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -64,10 +67,20 @@ export default function LogsPage() {
   return (
     <div className="p-6 h-full flex flex-col">
       <Tabs defaultValue="system" className="flex flex-col flex-1">
-        <TabsList className="mb-4">
-          <TabsTrigger value="system">System Logs (journald)</TabsTrigger>
-          <TabsTrigger value="audit">Audit Logs</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between mb-4">
+          <TabsList>
+            <TabsTrigger value="system">System Logs (journald)</TabsTrigger>
+            <TabsTrigger value="audit">Audit Logs</TabsTrigger>
+          </TabsList>
+          <PageHelp
+            title="Logs"
+            points={[
+              "Browse system, kernel and service logs",
+              "Filter by level, service and time range",
+              "Follow logs live as they arrive",
+            ]}
+          />
+        </div>
 
         <TabsContent value="system" className="flex flex-col flex-1 gap-4 mt-0">
           <div className="flex items-center gap-2 flex-wrap">
@@ -108,6 +121,15 @@ export default function LogsPage() {
 
           <Card className="flex-1 overflow-hidden">
             <CardContent className="p-0 h-full">
+              {loadingSystem && filteredSystemLogs.length === 0 ? (
+                <SkeletonList count={8} />
+              ) : filteredSystemLogs.length === 0 ? (
+                <EmptyState
+                  icon={FileText}
+                  title="Nothing to show"
+                  description="No log entries match the current filters."
+                />
+              ) : (
               <ScrollArea className="h-full font-mono text-xs">
                 <div className="divide-y divide-border/30">
                   {filteredSystemLogs.map((entry, i) => {
@@ -133,13 +155,9 @@ export default function LogsPage() {
                       </div>
                     );
                   })}
-                  {filteredSystemLogs.length === 0 && (
-                    <div className="text-center py-12 text-muted-foreground">
-                      {loadingSystem ? "Loading…" : "No log entries"}
-                    </div>
-                  )}
                 </div>
               </ScrollArea>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -156,6 +174,15 @@ export default function LogsPage() {
 
           <Card className="flex-1 overflow-hidden">
             <CardContent className="p-0 h-full">
+              {loadingAudit && !auditLogs?.items?.length ? (
+                <SkeletonList count={6} />
+              ) : !auditLogs?.items?.length ? (
+                <EmptyState
+                  icon={FileText}
+                  title="Nothing to show"
+                  description="No audit log entries match the current filters."
+                />
+              ) : (
               <ScrollArea className="h-full">
                 <table className="w-full text-xs">
                   <thead className="sticky top-0 bg-card border-b border-border z-10">
@@ -191,16 +218,10 @@ export default function LogsPage() {
                         </td>
                       </tr>
                     ))}
-                    {(!auditLogs?.items?.length) && (
-                      <tr>
-                        <td colSpan={6} className="text-center py-12 text-muted-foreground">
-                          {loadingAudit ? "Loading…" : "No audit logs"}
-                        </td>
-                      </tr>
-                    )}
                   </tbody>
                 </table>
               </ScrollArea>
+              )}
             </CardContent>
           </Card>
 

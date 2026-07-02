@@ -6,7 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
-import { AlertTriangle, RefreshCw, Save, Server, Sun, Moon, Monitor, Palette } from "lucide-react";
+import { AlertTriangle, RefreshCw, Save, Server, Sun, Moon, Monitor, Palette, Rows3, Rows4 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
 
@@ -14,6 +14,11 @@ const themes = [
   { value: "dark" as const,   label: "Dark",   icon: Moon },
   { value: "light" as const,  label: "Light",  icon: Sun },
   { value: "system" as const, label: "System", icon: Monitor },
+];
+
+const densities = [
+  { value: "comfortable" as const, label: "Comfortable", icon: Rows3 },
+  { value: "compact" as const,     label: "Compact",     icon: Rows4 },
 ];
 
 const accents = [
@@ -26,7 +31,7 @@ const accents = [
 ];
 
 export default function SettingsPage() {
-  const { theme, accentColor, setTheme, setAccentColor } = useTheme();
+  const { theme, accentColor, density, setTheme, setAccentColor, setDensity } = useTheme();
 
   const { data: settings, isLoading, refetch } = useQuery({
     queryKey: ["settings"],
@@ -138,6 +143,28 @@ export default function SettingsPage() {
                     outlineOffset: "2px",
                   }}
                 />
+              ))}
+            </div>
+          </div>
+
+          {/* Density selector */}
+          <div>
+            <p className="text-sm text-muted-foreground mb-3">Density</p>
+            <div className="grid grid-cols-2 gap-3">
+              {densities.map(({ value, label, icon: Icon }) => (
+                <button
+                  key={value}
+                  onClick={() => setDensity(value)}
+                  className={cn(
+                    "flex flex-col items-center gap-2 p-4 rounded-lg border transition-colors",
+                    density === value
+                      ? "bg-primary/10 border-primary text-primary"
+                      : "border-border hover:bg-secondary/50 text-muted-foreground hover:text-foreground"
+                  )}
+                >
+                  <Icon className="w-5 h-5" />
+                  <span className="text-xs font-medium">{label}</span>
+                </button>
               ))}
             </div>
           </div>

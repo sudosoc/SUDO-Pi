@@ -1,7 +1,10 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { RefreshCw, Monitor, Wifi } from "lucide-react";
+import { RefreshCw, Monitor, MonitorSmartphone, Wifi } from "lucide-react";
 import { apiClient } from "@/api/client";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { SkeletonTable } from "@/components/ui/skeleton";
+import { PageHelp } from "@/components/ui/page-help";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -80,6 +83,14 @@ export default function DevicesPage() {
         <span className="text-xs text-muted-foreground ml-auto">
           {filtered.length} device{filtered.length !== 1 ? "s" : ""}
         </span>
+        <PageHelp
+          title="Connected Devices"
+          points={[
+            "Every device connected to the AP",
+            "Hostname, IP, MAC and vendor info",
+            "Block or limit devices from the network",
+          ]}
+        />
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
@@ -116,6 +127,19 @@ export default function DevicesPage() {
           <CardTitle>All Devices</CardTitle>
         </CardHeader>
         <CardContent className="p-0">
+          {isLoading ? (
+            <SkeletonTable rows={6} cols={6} />
+          ) : filtered.length === 0 ? (
+            <EmptyState
+              icon={MonitorSmartphone}
+              title={search ? "No devices match the search" : "No devices connected"}
+              description={
+                search
+                  ? "Try a different IP, MAC, hostname or vendor."
+                  : "Devices that join the SUDO-Pi network will appear here."
+              }
+            />
+          ) : (
           <ScrollArea className="h-[calc(100vh-340px)]">
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-card border-b border-border">
@@ -129,17 +153,7 @@ export default function DevicesPage() {
                 </tr>
               </thead>
               <tbody>
-                {isLoading
-                  ? Array.from({ length: 6 }).map((_, i) => (
-                      <tr key={i} className="border-b border-border/50">
-                        {Array.from({ length: 6 }).map((_, j) => (
-                          <td key={j} className="px-4 py-3">
-                            <div className="h-4 bg-muted rounded animate-pulse" />
-                          </td>
-                        ))}
-                      </tr>
-                    ))
-                  : filtered.map((device) => (
+                {filtered.map((device) => (
                       <tr key={device.mac_address} className="border-b border-border/50 hover:bg-secondary/20">
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">
@@ -174,16 +188,10 @@ export default function DevicesPage() {
                         </td>
                       </tr>
                     ))}
-                {(!isLoading && filtered.length === 0) && (
-                  <tr>
-                    <td colSpan={6} className="text-center py-12 text-muted-foreground">
-                      {search ? "No devices match the search" : "No devices found"}
-                    </td>
-                  </tr>
-                )}
               </tbody>
             </table>
           </ScrollArea>
+          )}
         </CardContent>
       </Card>
     </div>

@@ -2,18 +2,22 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 
 type Theme = "dark" | "light" | "system";
 type AccentColor = "cyan" | "purple" | "green" | "orange" | "blue" | "rose";
+type Density = "comfortable" | "compact";
 
 interface ThemeContextValue {
   theme: Theme;
   accentColor: AccentColor;
+  density: Density;
   setTheme: (theme: Theme) => void;
   setAccentColor: (color: AccentColor) => void;
+  setDensity: (density: Density) => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
 const THEME_KEY = "sudo-pi-theme";
 const ACCENT_KEY = "sudo-pi-accent";
+const DENSITY_KEY = "sudo-pi-density";
 
 function getStoredTheme(): Theme {
   try {
@@ -40,6 +44,14 @@ function getStoredAccent(): AccentColor {
   return "cyan";
 }
 
+function getStoredDensity(): Density {
+  try {
+    const stored = localStorage.getItem(DENSITY_KEY);
+    if (stored === "comfortable" || stored === "compact") return stored;
+  } catch {}
+  return "comfortable";
+}
+
 function applyTheme(theme: Theme, systemPrefersDark: boolean) {
   const root = document.documentElement;
   const useDark =
@@ -56,9 +68,14 @@ function applyAccent(color: AccentColor) {
   document.documentElement.setAttribute("data-accent", color);
 }
 
+function applyDensity(density: Density) {
+  document.documentElement.setAttribute("data-density", density);
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>(getStoredTheme);
   const [accentColor, setAccentState] = useState<AccentColor>(getStoredAccent);
+  const [density, setDensityState] = useState<Density>(getStoredDensity);
 
   // Apply on mount and whenever theme changes
   useEffect(() => {
@@ -80,6 +97,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     applyAccent(accentColor);
   }, [accentColor]);
 
+  // Apply density on mount and whenever it changes
+  useEffect(() => {
+    applyDensity(density);
+  }, [density]);
+
   const setTheme = (newTheme: Theme) => {
     try {
       localStorage.setItem(THEME_KEY, newTheme);
@@ -94,8 +116,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setAccentState(color);
   };
 
+  const setDensity = (newDensity: Density) => {
+    try {
+      localStorage.setItem(DENSITY_KEY, newDensity);
+    } catch {}
+    setDensityState(newDensity);
+  };
+
   return (
-    <ThemeContext.Provider value={{ theme, accentColor, setTheme, setAccentColor }}>
+    <ThemeContext.Provider
+      value={{ theme, accentColor, density, setTheme, setAccentColor, setDensity }}
+    >
       {children}
     </ThemeContext.Provider>
   );

@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -171,6 +172,7 @@ function KillModal({
 
 export default function ProcessPage() {
   const queryClient = useQueryClient();
+  const { confirm, dialog }         = useConfirm();
   const [search, setSearch]         = useState("");
   const [sortKey, setSortKey]       = useState<SortKey>("cpu");
   const [sortDir, setSortDir]       = useState<SortDir>("desc");
@@ -203,6 +205,29 @@ export default function ProcessPage() {
       setKillTarget(null);
     },
   });
+
+  // Every kill passes through the unified ConfirmDialog. The KillModal above
+  // only picks the signal — the actual confirmation happens here.
+  const requestKill = async (proc: Process, signal: number) => {
+    setKillTarget(null);
+    const name = proc.command.split(" ")[0] || `PID ${proc.pid}`;
+    const ok = await confirm(
+      signal === 9
+        ? {
+            title: `Force kill ${name}?`,
+            description: `SIGKILL (9) terminates PID ${proc.pid} immediately — the process cannot clean up and unsaved data is lost. This can't be undone.`,
+            severity: "danger",
+            confirmLabel: "Force Kill (SIGKILL)",
+          }
+        : {
+            title: `Kill ${name}?`,
+            description: `SIGTERM (15) asks PID ${proc.pid} to exit gracefully, giving it a chance to save state and clean up.`,
+            severity: "danger",
+            confirmLabel: "Kill (SIGTERM)",
+          }
+    );
+    if (ok) killMutation.mutate({ pid: proc.pid, signal });
+  };
 
   const handleSort = useCallback((key: SortKey) => {
     setSortKey(key);
@@ -245,9 +270,10 @@ export default function ProcessPage() {
         <KillModal
           process={killTarget}
           onClose={() => setKillTarget(null)}
-          onConfirm={(signal) => killMutation.mutate({ pid: killTarget.pid, signal })}
+          onConfirm={(signal) => { void requestKill(killTarget, signal); }}
         />
       )}
+      {dialog}
 
       {/* Summary */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

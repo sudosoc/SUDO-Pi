@@ -3,6 +3,7 @@ import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { StatusBar } from "./StatusBar";
+import { GlobalLoadingBar } from "./GlobalLoadingBar";
 import { FloatingTerminal } from "./FloatingTerminal";
 import { OnboardingWizard } from "./OnboardingWizard";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
@@ -88,6 +89,7 @@ export function MainLayout() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
+      <GlobalLoadingBar />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">

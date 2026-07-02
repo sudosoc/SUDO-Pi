@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
+import { useConfirm } from "@/components/ui/confirm-dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -196,19 +197,14 @@ function FormatModal({
 }) {
   const [fstype, setFstype] = useState("ext4");
   const [label, setLabel]   = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [saving, setSaving]   = useState(false);
+  const [saving, setSaving] = useState(false);
 
+  // The final critical confirmation (type FORMAT) happens in the unified
+  // ConfirmDialog, driven by the parent's onFormat handler.
   const handleFormat = async () => {
-    if (confirm !== device) {
-      toast({ title: "Type the device path to confirm", variant: "destructive" } as { title: string; variant: "destructive" });
-      return;
-    }
     setSaving(true);
     try {
       await onFormat(device, fstype, label);
-      toast({ title: "Format complete", variant: "success" } as { title: string; variant: "success" });
-      onClose();
     } finally {
       setSaving(false);
     }
@@ -240,23 +236,11 @@ function FormatModal({
           <label className="text-xs text-muted-foreground mb-1 block">Label (optional)</label>
           <Input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="DATA" maxLength={16} />
         </div>
-        <div>
-          <label className="text-xs text-muted-foreground mb-1 block">
-            Type <span className="font-mono text-destructive">{device}</span> to confirm
-          </label>
-          <Input
-            value={confirm}
-            onChange={(e) => setConfirm(e.target.value)}
-            placeholder={device}
-            className="font-mono border-destructive/50 focus:border-destructive"
-          />
-        </div>
         <div className="flex gap-2">
           <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
           <Button
             variant="destructive" className="flex-1"
             onClick={handleFormat} loading={saving}
-            disabled={confirm !== device}
           >
             <Trash2 className="w-3.5 h-3.5 mr-1.5" />
             Format
@@ -499,6 +483,7 @@ function IoStatsTab() {
 
 export default function StoragePage() {
   const queryClient = useQueryClient();
+  const { confirm, dialog } = useConfirm();
   const [mountTarget, setMountTarget] = useState<string | null>(null);
   const [formatTarget, setFormatTarget] = useState<string | null>(null);
 
@@ -565,6 +550,28 @@ export default function StoragePage() {
     },
   });
 
+  // ── Confirmed destructive flows ─────────────────────────────────────────
+
+  const requestUnmount = async (path: string) => {
+    const ok = await confirm({
+      title: `Unmount ${path}?`,
+      description: "Programs using files on this mount may fail. Make sure nothing is actively reading or writing to it.",
+      severity: "danger",
+      confirmLabel: "Unmount",
+    });
+    if (ok) unmountDevice.mutate(path);
+  };
+
+  const requestEject = async (device: string) => {
+    const ok = await confirm({
+      title: `Eject ${device}?`,
+      description: "The disk will be spun down and can be safely removed afterwards.",
+      severity: "danger",
+      confirmLabel: "Eject",
+    });
+    if (ok) ejectDevice.mutate(device);
+  };
+
   const invalidateAll = () => {
     queryClient.invalidateQueries({ queryKey: ["storage-devices"] });
     queryClient.invalidateQueries({ queryKey: ["usb-devices"] });
@@ -594,11 +601,21 @@ export default function StoragePage() {
           device={formatTarget}
           onClose={() => setFormatTarget(null)}
           onFormat={async (device, fstype, label) => {
+            const ok = await confirm({
+              title: `Format ${device}?`,
+              description: "This permanently erases all data on the device. This cannot be undone.",
+              severity: "critical",
+              typeToConfirm: "FORMAT",
+              confirmLabel: "Format Device",
+            });
+            if (!ok) return;
             await formatDevice.mutateAsync({ device, fstype, label });
+            toast({ title: "Format complete", variant: "success" } as { title: string; variant: "success" });
             setFormatTarget(null);
           }}
         />
       )}
+      {dialog}
 
       {/* Storage overview */}
       {usage && usage.length > 0 && (
@@ -721,9 +738,9 @@ export default function StoragePage() {
                       <BlockDeviceRow
                         key={dev.name} device={dev} depth={0}
                         onMount={(d) => setMountTarget(d)}
-                        onUnmount={(path) => unmountDevice.mutate(path)}
+                        onUnmount={(path) => { void requestUnmount(path); }}
                         onFormat={(d) => setFormatTarget(d)}
-                        onEject={(d) => { if (window.confirm(`Eject ${d}?`)) ejectDevice.mutate(d); }}
+                        onEject={(d) => { void requestEject(d); }}
                       />
                     ))}
                   </div>

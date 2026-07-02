@@ -1,4 +1,5 @@
 import axios, { type AxiosInstance, type AxiosError, type InternalAxiosRequestConfig } from "axios";
+import { loadingBus } from "@/components/layout/GlobalLoadingBar";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "";
 
@@ -15,6 +16,34 @@ function getCsrfToken(): string | null {
   const match = document.cookie.match(/(?:^|;\s*)csrf_token=([^;]+)/);
   return match ? decodeURIComponent(match[1]) : null;
 }
+
+// ─── Global loading bar wiring ───────────────────────────────────────────────
+// Dedicated interceptor pair so every start() is matched by exactly one done().
+// The response pair is registered FIRST so it runs before any other response
+// interceptor (HTML guard, 401 refresh) — done() therefore fires whether those
+// later interceptors fulfill, reject, or retry. Retries issued through
+// apiClient() re-enter the chain and get their own balanced start()/done().
+apiClient.interceptors.request.use(
+  (config: InternalAxiosRequestConfig) => {
+    loadingBus.start();
+    return config;
+  },
+  (error) => {
+    loadingBus.done();
+    return Promise.reject(error);
+  }
+);
+
+apiClient.interceptors.response.use(
+  (response) => {
+    loadingBus.done();
+    return response;
+  },
+  (error) => {
+    loadingBus.done();
+    return Promise.reject(error);
+  }
+);
 
 apiClient.interceptors.request.use((config: InternalAxiosRequestConfig) => {
   const method = config.method?.toUpperCase();

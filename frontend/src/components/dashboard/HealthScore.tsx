@@ -1,5 +1,6 @@
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity } from "lucide-react";
+import { useCountUp } from "@/hooks/useCountUp";
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 
@@ -125,7 +126,9 @@ function BreakdownRow({ label, value, maxVal }: BreakdownRowProps) {
 export function HealthScore({ cpu, ram, disk, temp, servicesUpPct }: HealthScoreProps) {
   const breakdown = computeScore(cpu, ram, disk, temp, servicesUpPct);
   const { score }  = breakdown;
-  const progress   = score / 100;
+  const animated   = useCountUp(score);
+  const displayed  = Math.round(animated);
+  const progress   = animated / 100;
   const color      = scoreColor(score);
 
   return (
@@ -175,7 +178,7 @@ export function HealthScore({ cpu, ram, disk, temp, servicesUpPct }: HealthScore
             fontWeight="600"
             fill={color}
           >
-            {score}
+            {displayed}
           </text>
 
           {/* Label */}

@@ -5,9 +5,14 @@ import {
   GitBranch, FileText, Network, Flame, Clock, KeyRound, Activity,
   Bell, HardDrive, Monitor, Users, Shield, Settings, MonitorSmartphone,
   Server, Search, ArrowRight, Loader2, Stethoscope,
+  RefreshCw, Power, Gauge, Archive, Globe2,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { apiClient } from "@/api/client";
+import { toast } from "@/components/ui/use-toast";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { useAuthStore } from "@/stores/authStore";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -18,6 +23,19 @@ interface PaletteEntry {
   label: string;
   icon:  React.ComponentType<{ className?: string }>;
   tags?: string[];
+}
+
+interface ActionEntry {
+  id: string;
+  label: string;
+  icon: LucideIcon;
+  tags: string[];
+  adminOnly?: boolean;
+  danger?: boolean;           // needs confirm
+  typeToConfirm?: string;     // for the most destructive
+  confirmTitle?: string;
+  confirmDescription?: string;
+  run: () => Promise<string>; // returns success message
 }
 
 interface DeviceClient {
@@ -44,7 +62,7 @@ interface ProcessInfo {
 // A flat navigable item — one entry per keyboard-selectable row
 interface FlatItem {
   key:      string;
-  to:       string;
+  to?:      string;
   onSelect: () => void;
   render:   (isActive: boolean) => React.ReactNode;
 }
@@ -78,6 +96,85 @@ const ENTRIES: PaletteEntry[] = [
   { to: "/security",  label: "Security",        icon: Shield,            tags: ["fail2ban", "hardening"] },
   { to: "/settings",  label: "Settings",        icon: Settings,          tags: ["config", "theme", "preferences"] },
   { to: "/diagnostics", label: "Diagnostics",   icon: Stethoscope,       tags: ["health", "self-check", "status", "troubleshoot"] },
+];
+
+// ---------------------------------------------------------------------------
+// Executable actions
+// ---------------------------------------------------------------------------
+
+const ACTIONS: ActionEntry[] = [
+  {
+    id:    "reboot",
+    label: "Reboot Pi",
+    icon:  RefreshCw,
+    tags:  ["restart", "reboot", "power", "cycle"],
+    adminOnly: true,
+    danger: true,
+    confirmTitle: "Reboot the Pi?",
+    confirmDescription: "All sessions will disconnect for ~30 seconds.",
+    run: async () => {
+      await apiClient.post("/system/reboot");
+      return "Rebooting — the Pi will be back in ~30 seconds";
+    },
+  },
+  {
+    id:    "shutdown",
+    label: "Shutdown Pi",
+    icon:  Power,
+    tags:  ["shutdown", "power", "off", "halt", "poweroff"],
+    adminOnly: true,
+    danger: true,
+    typeToConfirm: "CONFIRM",
+    confirmTitle: "Shut down the Pi?",
+    confirmDescription: "The Pi will power off. You'll need physical access to turn it back on.",
+    run: async () => {
+      await apiClient.post("/system/shutdown");
+      return "Shutting down — the Pi is powering off";
+    },
+  },
+  {
+    id:    "speedtest",
+    label: "Run speed test",
+    icon:  Gauge,
+    tags:  ["speed", "test", "bandwidth", "internet", "download", "upload"],
+    run: async () => {
+      await apiClient.post("/speedtest/run");
+      return "Speed test started — check the Speed Test page";
+    },
+  },
+  {
+    id:    "backup-config",
+    label: "Create config backup",
+    icon:  Archive,
+    tags:  ["backup", "config", "save", "archive", "snapshot"],
+    adminOnly: true,
+    run: async () => {
+      await apiClient.post("/backup/config", { name: null });
+      return "Config backup started";
+    },
+  },
+  {
+    id:    "internet-sharing",
+    label: "Enable internet sharing",
+    icon:  Globe2,
+    tags:  ["internet", "sharing", "nat", "ap", "hotspot", "upstream"],
+    adminOnly: true,
+    run: async () => {
+      await apiClient.post("/network/internet-sharing/enable");
+      return "Internet sharing enabled for AP clients";
+    },
+  },
+  {
+    id:    "uptime-check",
+    label: "Check uptime now",
+    icon:  Activity,
+    tags:  ["uptime", "check", "monitor", "health", "services"],
+    adminOnly: true,
+    run: async () => {
+      await apiClient.post("/uptime/check-now");
+      return "Uptime check triggered";
+    },
+  },
 ];
 
 // ---------------------------------------------------------------------------
@@ -118,6 +215,7 @@ interface CommandPaletteProps {
 
 export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate();
+  const role     = useAuthStore((s) => s.user?.role);
 
   const [query,      setQuery]      = useState("");
   const [active,     setActive]     = useState(0);
@@ -125,24 +223,32 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [containers, setContainers] = useState<LoadState<DockerContainer>>({ status: "idle" });
   const [processes,  setProcesses]  = useState<LoadState<ProcessInfo>>({ status: "idle" });
 
+  const [runningActionId, setRunningActionId] = useState<string | null>(null);
+  const [confirmAction,   setConfirmAction]   = useState<ActionEntry | null>(null);
+
   const inputRef   = useRef<HTMLInputElement>(null);
   const listRef    = useRef<HTMLDivElement>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // ---------------------------------------------------------------------------
-  // Filtered pages
+  // Filtered pages & actions
   // ---------------------------------------------------------------------------
 
-  const filteredPages = query.trim()
-    ? ENTRIES.filter((e) => {
-        const q = query.toLowerCase();
-        return (
-          e.label.toLowerCase().includes(q) ||
-          e.to.includes(q) ||
-          e.tags?.some((t) => t.includes(q))
-        );
-      })
+  const q = query.trim().toLowerCase();
+
+  const filteredPages = q
+    ? ENTRIES.filter((e) =>
+        e.label.toLowerCase().includes(q) ||
+        e.to.includes(q) ||
+        e.tags?.some((t) => t.includes(q))
+      )
     : ENTRIES;
+
+  const filteredActions = ACTIONS.filter((a) => {
+    if (a.adminOnly && role !== "admin") return false;
+    if (!q) return true;
+    return a.label.toLowerCase().includes(q) || a.tags.some((t) => t.includes(q));
+  });
 
   // ---------------------------------------------------------------------------
   // Live search
@@ -233,6 +339,8 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
       setDevices({ status: "idle" });
       setContainers({ status: "idle" });
       setProcesses({ status: "idle" });
+      setRunningActionId(null);
+      setConfirmAction(null);
       setTimeout(() => inputRef.current?.focus(), 30);
     }
   }, [open]);
@@ -250,10 +358,87 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   );
 
   // ---------------------------------------------------------------------------
+  // Action execution
+  // ---------------------------------------------------------------------------
+
+  const executeAction = async (action: ActionEntry) => {
+    setRunningActionId(action.id);
+    try {
+      const msg = await action.run();
+      toast({ title: msg, variant: "success" } as { title: string; variant: "success" });
+      onClose();
+    } catch (err) {
+      const e = err as { response?: { data?: { detail?: string } } };
+      toast({
+        title: `${action.label} failed`,
+        description: e?.response?.data?.detail ?? "Unknown error",
+        variant: "destructive",
+      } as { title: string; description: string; variant: "destructive" });
+    } finally {
+      setRunningActionId(null);
+    }
+  };
+
+  const onActionSelect = (action: ActionEntry) => {
+    if (runningActionId) return;
+    if (action.danger || action.typeToConfirm) {
+      setConfirmAction(action);
+    } else {
+      void executeAction(action);
+    }
+  };
+
+  // ---------------------------------------------------------------------------
   // Build flat navigable item list
   // ---------------------------------------------------------------------------
 
   const flatItems: FlatItem[] = [];
+
+  // Actions (shown above pages)
+  filteredActions.forEach((action) => {
+    const Icon = action.icon;
+    const isDanger  = !!action.danger || !!action.typeToConfirm;
+    const isRunning = runningActionId === action.id;
+    flatItems.push({
+      key:      `action:${action.id}`,
+      onSelect: () => onActionSelect(action),
+      render:   (isActive) => (
+        <div
+          className={cn(
+            "flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors",
+            isActive
+              ? "bg-primary/10 text-foreground"
+              : "hover:bg-secondary/50 text-muted-foreground hover:text-foreground"
+          )}
+        >
+          <div
+            className={cn(
+              "w-7 h-7 rounded-md flex items-center justify-center shrink-0",
+              isDanger
+                ? "bg-destructive/15"
+                : isActive ? "bg-primary/20" : "bg-secondary"
+            )}
+          >
+            {isRunning ? (
+              <Loader2 className="w-4 h-4 animate-spin text-primary" />
+            ) : (
+              <Icon
+                className={cn(
+                  "w-4 h-4",
+                  isDanger ? "text-destructive" : isActive ? "text-primary" : ""
+                )}
+              />
+            )}
+          </div>
+          <span className="flex-1 text-sm font-medium">{action.label}</span>
+          {isDanger && (
+            <span className="text-[10px] font-mono text-destructive/70 shrink-0">confirm</span>
+          )}
+          {isActive && <ArrowRight className="w-3.5 h-3.5 text-primary shrink-0" />}
+        </div>
+      ),
+    });
+  });
 
   // Pages
   filteredPages.forEach((entry) => {
@@ -422,6 +607,17 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   const onKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
+      // While the confirm dialog is open, the palette input keeps focus for
+      // non-typeToConfirm dialogs — Escape should close the dialog, not the
+      // palette, and other navigation keys are ignored.
+      if (confirmAction) {
+        if (e.key === "Escape") {
+          e.preventDefault();
+          e.stopPropagation();
+          setConfirmAction(null);
+        }
+        return;
+      }
       if (e.key === "ArrowDown") {
         e.preventDefault();
         setActive((p) => Math.min(p + 1, totalItems - 1));
@@ -437,7 +633,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     },
     // flatItems is rebuilt every render — intentionally include active/totalItems in deps
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [active, totalItems, onClose]
+    [active, totalItems, onClose, confirmAction]
   );
 
   // ---------------------------------------------------------------------------
@@ -462,6 +658,11 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
   // We need to render section labels interleaved with items, while tracking
   // the running flat index for data-idx assignment.
   let runningIdx = 0;
+
+  const actionItems = filteredActions.map(() => {
+    const idx = runningIdx++;
+    return { idx, item: flatItems[idx] }; // guaranteed to be an action item
+  });
 
   const pageItems = filteredPages.map(() => {
     const idx = runningIdx++;
@@ -500,6 +701,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
     processes.status === "loading";
 
   const hasNoResults =
+    filteredActions.length === 0 &&
     filteredPages.length === 0 &&
     devItems.length === 0 &&
     conItems.length === 0 &&
@@ -530,7 +732,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
               value={query}
               onChange={(e) => { setQuery(e.target.value); setActive(0); }}
               onKeyDown={onKeyDown}
-              placeholder="Search pages, devices, containers…"
+              placeholder="Search pages, actions, devices, containers…"
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
             <kbd className="hidden sm:inline text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground font-mono">
@@ -546,6 +748,22 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
               </div>
             ) : (
               <>
+                {/* Actions section */}
+                {actionItems.length > 0 && (
+                  <>
+                    <SectionLabel>Actions</SectionLabel>
+                    {actionItems.map(({ idx, item }) => (
+                      <div
+                        key={item.key}
+                        data-idx={idx}
+                        onClick={item.onSelect}
+                      >
+                        {item.render(idx === active)}
+                      </div>
+                    ))}
+                  </>
+                )}
+
                 {/* Pages section */}
                 {(filteredPages.length > 0 || !isLiveSearch) && (
                   <>
@@ -634,6 +852,22 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
         </div>
       </div>
+
+      {/* Confirmation dialog for dangerous actions — renders above the palette (z-[70]) */}
+      <ConfirmDialog
+        open={confirmAction !== null}
+        onClose={() => setConfirmAction(null)}
+        onConfirm={() => {
+          const action = confirmAction;
+          setConfirmAction(null);
+          if (action) void executeAction(action);
+        }}
+        title={confirmAction?.confirmTitle ?? confirmAction?.label ?? ""}
+        description={confirmAction?.confirmDescription}
+        severity={confirmAction?.typeToConfirm ? "critical" : "danger"}
+        typeToConfirm={confirmAction?.typeToConfirm}
+        confirmLabel={confirmAction?.label ?? "Confirm"}
+      />
     </>
   );
 }
