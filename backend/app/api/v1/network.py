@@ -13,6 +13,7 @@ from app.schemas.network import (
     WifiPriorityUpdate,
 )
 from app.services import network_service
+from app.services import internet_sharing_service
 from app.services.audit_service import AuditService
 from app.repositories.network_repository import WifiProfileRepository
 
@@ -106,6 +107,29 @@ async def delete_wifi_profile(
 @router.get("/arp")
 async def get_arp_table(_: ActiveUser) -> list[dict]:
     return await network_service.get_arp_table()
+
+
+@router.get("/internet-sharing")
+async def get_internet_sharing(_: ActiveUser) -> dict:
+    """Report whether AP clients have a working internet path (NAT status)."""
+    return await internet_sharing_service.get_status()
+
+
+@router.post("/internet-sharing/enable", dependencies=[CsrfVerified])
+async def enable_internet_sharing(current_user: AdminUser, db: DBSession) -> dict:
+    """Auto-detect the upstream interface and (re)build NAT so AP clients get internet."""
+    audit = AuditService(db)
+    try:
+        result = await internet_sharing_service.enable_sharing()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+    await audit.log(
+        "network.internet_sharing.enable",
+        user=current_user,
+        resource=result.get("upstream_interface", "unknown"),
+        status_code=200,
+    )
+    return result
 
 
 @router.put("/wifi/{profile_id}/priority", dependencies=[CsrfVerified])

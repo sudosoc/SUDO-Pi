@@ -2,7 +2,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle2, AlertTriangle, XCircle, RefreshCw, Stethoscope,
-  Server, ShieldCheck, Wrench, HardDrive,
+  Server, ShieldCheck, Wrench, HardDrive, Globe2,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -37,12 +37,13 @@ const STATUS_META: Record<CheckStatus, { icon: typeof CheckCircle2; color: strin
 
 const CATEGORY_ICONS: Record<string, typeof Server> = {
   Services:   Server,
+  Network:    Globe2,
   Privileges: ShieldCheck,
   Tooling:    Wrench,
   Storage:    HardDrive,
 };
 
-const CATEGORY_ORDER = ["Services", "Privileges", "Tooling", "Storage"];
+const CATEGORY_ORDER = ["Services", "Network", "Privileges", "Tooling", "Storage"];
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 

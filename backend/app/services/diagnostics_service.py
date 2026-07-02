@@ -132,6 +132,45 @@ async def _check_services() -> list[dict]:
 # ─── Privilege / capability checks ───────────────────────────────────────────
 
 
+async def _check_network() -> list[dict]:
+    """Check that AP clients have a working internet path (NAT sharing)."""
+    from app.services import internet_sharing_service
+
+    try:
+        st = await internet_sharing_service.get_status()
+    except Exception as exc:  # noqa: BLE001
+        return [_check("Internet sharing", "Network", "warn", f"could not determine: {exc}")]
+
+    if st["sharing_active"]:
+        return [
+            _check(
+                "Internet sharing",
+                "Network",
+                "ok",
+                f"AP clients route through {st['upstream_interface']}",
+            )
+        ]
+    if not st["upstream_interface"]:
+        return [
+            _check(
+                "Internet sharing",
+                "Network",
+                "warn",
+                "no upstream internet on the Pi",
+                "Connect ethernet / a second Wi-Fi adapter, then enable sharing on the Network page",
+            )
+        ]
+    return [
+        _check(
+            "Internet sharing",
+            "Network",
+            "warn",
+            f"upstream {st['upstream_interface']} present but sharing is off",
+            "Open Network → Internet Sharing → Enable, or run scripts/fix-internet-sharing.sh",
+        )
+    ]
+
+
 async def _check_privileges() -> list[dict]:
     results: list[dict] = []
 
@@ -234,14 +273,15 @@ async def _check_filesystem() -> list[dict]:
 
 async def run_diagnostics() -> dict:
     """Run every diagnostic group concurrently and return a structured report."""
-    binaries, services, privileges, filesystem = await asyncio.gather(
+    binaries, services, privileges, filesystem, network = await asyncio.gather(
         _check_binaries(),
         _check_services(),
         _check_privileges(),
         _check_filesystem(),
+        _check_network(),
     )
 
-    checks = [*services, *privileges, *binaries, *filesystem]
+    checks = [*services, *network, *privileges, *binaries, *filesystem]
 
     summary = {"ok": 0, "warn": 0, "fail": 0}
     for c in checks:

@@ -4,6 +4,7 @@ import {
   Wifi, WifiOff, Router, RefreshCw,
   Users, Lock, Unlock, Save, Network,
   ShieldOff, Shield, ScanLine, Globe,
+  Globe2, ArrowRightLeft, AlertTriangle, CheckCircle2,
 } from "lucide-react";
 import { networkApi } from "@/api/network";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -784,6 +785,138 @@ function CaptivePortalTab() {
 
 // ─── Main Page ─────────────────────────────────────────────────────────────────
 
+// ─── Internet Sharing Card ─────────────────────────────────────────────────────
+
+interface InternetSharingStatus {
+  sharing_active: boolean;
+  upstream_interface: string | null;
+  upstream_has_internet: boolean;
+  ip_forwarding: boolean;
+  masquerade_rule: boolean;
+  ap_interface: string;
+  ap_network: string;
+  summary: string;
+}
+
+function InternetSharingCard() {
+  const queryClient = useQueryClient();
+  const isAdmin = useAuthStore((s) => s.user?.role === "admin");
+
+  const { data: status, isLoading } = useQuery({
+    queryKey: ["internet-sharing"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<InternetSharingStatus>("/network/internet-sharing");
+      return data;
+    },
+    refetchInterval: 15000,
+  });
+
+  const enableMutation = useMutation({
+    mutationFn: async () => {
+      const { data } = await apiClient.post("/network/internet-sharing/enable");
+      return data;
+    },
+    onSuccess: (data: { detail?: string }) => {
+      queryClient.invalidateQueries({ queryKey: ["internet-sharing"] });
+      toast({
+        title: "Internet sharing enabled",
+        description: data?.detail ?? "AP clients can now reach the internet.",
+        variant: "success",
+      } as { title: string; description: string; variant: "success" });
+    },
+    onError: (err: { response?: { data?: { detail?: string } } }) => {
+      toast({
+        title: "Could not enable sharing",
+        description: err?.response?.data?.detail ?? "No upstream internet connection found.",
+        variant: "destructive",
+      } as { title: string; description: string; variant: "destructive" });
+    },
+  });
+
+  const active = status?.sharing_active;
+  const noUpstream = status && !status.upstream_interface;
+
+  return (
+    <Card className={cn(active ? "border-success/30" : noUpstream ? "border-destructive/30" : "border-warning/30")}>
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle className="flex items-center gap-2">
+          <Globe2 className="w-4 h-4 text-muted-foreground" />
+          Internet Sharing
+        </CardTitle>
+        <Badge variant={active ? "success" : noUpstream ? "destructive" : "warning"}>
+          {isLoading ? "…" : active ? "Active" : noUpstream ? "No upstream" : "Inactive"}
+        </Badge>
+      </CardHeader>
+      <CardContent className="space-y-4 text-sm">
+        <p className="text-muted-foreground leading-relaxed">
+          {isLoading ? "Checking internet path for AP clients…" : status?.summary}
+        </p>
+
+        {status && (
+          <div className="flex items-center justify-center gap-2 py-2 text-xs">
+            <span className="px-2.5 py-1 rounded-lg bg-secondary font-mono">{status.ap_interface}</span>
+            <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
+            <span className="px-2.5 py-1 rounded-lg bg-secondary font-mono">
+              {status.upstream_interface ?? "— none —"}
+            </span>
+            {status.upstream_interface && (
+              <>
+                <ArrowRightLeft className="w-3.5 h-3.5 text-muted-foreground" />
+                <span className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-secondary">
+                  <Globe2 className="w-3 h-3" /> Internet
+                </span>
+              </>
+            )}
+          </div>
+        )}
+
+        {status && (
+          <div className="grid grid-cols-3 gap-2 text-xs">
+            <StatusChip label="Upstream link" ok={status.upstream_has_internet} />
+            <StatusChip label="IP forwarding" ok={status.ip_forwarding} />
+            <StatusChip label="NAT rule" ok={status.masquerade_rule} />
+          </div>
+        )}
+
+        {!active && isAdmin && (
+          <Button
+            className="w-full"
+            onClick={() => enableMutation.mutate()}
+            loading={enableMutation.isPending}
+            disabled={noUpstream ?? false}
+          >
+            <RefreshCw className="w-3.5 h-3.5" />
+            {noUpstream ? "Connect the Pi to the internet first" : "Enable internet sharing"}
+          </Button>
+        )}
+
+        {noUpstream && (
+          <p className="text-xs text-muted-foreground/80 leading-relaxed">
+            The Pi itself has no internet. Connect it via ethernet, a second Wi-Fi adapter,
+            or a USB-tethered phone, then click enable.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function StatusChip({ label, ok }: { label: string; ok: boolean }) {
+  return (
+    <div className={cn(
+      "flex items-center gap-1.5 rounded-lg border px-2 py-1.5",
+      ok ? "border-success/30 bg-success/5" : "border-border bg-muted/30"
+    )}>
+      {ok ? (
+        <CheckCircle2 className="w-3.5 h-3.5 text-success shrink-0" />
+      ) : (
+        <AlertTriangle className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+      )}
+      <span className={cn("text-[11px]", ok ? "text-foreground" : "text-muted-foreground")}>{label}</span>
+    </div>
+  );
+}
+
 export default function NetworkPage() {
   const queryClient = useQueryClient();
   const [connectTarget, setConnectTarget] = useState<WifiScanResult | null>(null);
@@ -879,6 +1012,7 @@ export default function NetworkPage() {
         </TabsList>
 
         <TabsContent value="ap" className="space-y-4 mt-4">
+          <InternetSharingCard />
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <Card>
               <CardHeader className="flex-row items-center justify-between">
