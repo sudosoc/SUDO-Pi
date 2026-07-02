@@ -2,6 +2,10 @@ import { Suspense, useState, useEffect } from "react";
 import { Outlet, useLocation } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
+import { StatusBar } from "./StatusBar";
+import { FloatingTerminal } from "./FloatingTerminal";
+import { OnboardingWizard } from "./OnboardingWizard";
+import { Breadcrumb } from "./Breadcrumb";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useSystemMetrics } from "@/hooks/useSystemMetrics";
@@ -15,29 +19,29 @@ function PageLoader() {
 }
 
 const ROUTE_TITLES: Record<string, string> = {
-  "/":           "Dashboard",
-  "/system":     "System Monitor",
-  "/processes":  "Process Manager",
-  "/terminal":   "Terminal",
-  "/files":      "File Manager",
-  "/network":    "Network Manager",
-  "/packages":   "Package Manager",
-  "/docker":     "Docker Manager",
-  "/bluetooth":  "Bluetooth",
-  "/gpio":       "GPIO",
-  "/devices":    "Connected Devices",
-  "/logs":       "Logs",
-  "/vpn":        "VPN Manager",
-  "/firewall":   "Firewall Manager",
-  "/cron":       "Cron Job Manager",
-  "/ssh":        "SSH Manager",
-  "/metrics":    "Performance Metrics",
-  "/speedtest":  "Speed Test",
-  "/alerts":     "Alert System",
-  "/storage":    "Storage Manager",
-  "/display":    "Display Manager",
-  "/users":      "Users",
-  "/security":   "Security",
+  "/":                 "Dashboard",
+  "/system":           "System Monitor",
+  "/processes":        "Process Manager",
+  "/terminal":         "Terminal",
+  "/files":            "File Manager",
+  "/network":          "Network Manager",
+  "/packages":         "Package Manager",
+  "/docker":           "Docker Manager",
+  "/bluetooth":        "Bluetooth",
+  "/gpio":             "GPIO",
+  "/devices":          "Connected Devices",
+  "/logs":             "Logs",
+  "/vpn":              "VPN Manager",
+  "/firewall":         "Firewall Manager",
+  "/cron":             "Cron Job Manager",
+  "/ssh":              "SSH Manager",
+  "/metrics":          "Performance Metrics",
+  "/speedtest":        "Speed Test",
+  "/alerts":           "Alert System",
+  "/storage":          "Storage Manager",
+  "/display":          "Display Manager",
+  "/users":            "Users",
+  "/security":         "Security",
   "/settings":         "Settings",
   "/network-traffic":  "Traffic Monitor",
 };
@@ -52,7 +56,7 @@ function getTitle(pathname: string): string {
 
 export function MainLayout() {
   const location = useLocation();
-  const [sidebarCollapsed, setSidebarCollapsed]     = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const title = getTitle(location.pathname);
 
@@ -83,22 +87,27 @@ export function MainLayout() {
   };
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
-      <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
-      <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-        <Header title={title} onOpenPalette={() => setPaletteOpen(true)} />
-        <main className="flex-1 overflow-auto">
-          <div className="h-full">
-            <ErrorBoundary>
-              <Suspense fallback={<PageLoader />}>
-                <Outlet />
-              </Suspense>
-            </ErrorBoundary>
-          </div>
-        </main>
+    <div className="flex flex-col h-screen overflow-hidden bg-background">
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
+        <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
+          <Header title={title} onOpenPalette={() => setPaletteOpen(true)} />
+          <Breadcrumb />
+          <main className="flex-1 overflow-auto">
+            <div key={location.pathname} className="page-transition h-full">
+              <ErrorBoundary>
+                <Suspense fallback={<PageLoader />}>
+                  <Outlet />
+                </Suspense>
+              </ErrorBoundary>
+            </div>
+          </main>
+        </div>
       </div>
 
-      {/* Gift 2: Command Palette */}
+      <StatusBar />
+      <FloatingTerminal />
+      <OnboardingWizard />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
     </div>
   );

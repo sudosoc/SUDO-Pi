@@ -1,18 +1,83 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useSystemStore } from "@/stores/systemStore";
 import { SystemStats } from "@/components/dashboard/SystemStats";
 import { ProcessTable } from "@/components/dashboard/ProcessTable";
 import { ServiceStatus } from "@/components/dashboard/ServiceStatus";
 import { MetricGauge } from "@/components/dashboard/MetricGauge";
+import { HealthScore } from "@/components/dashboard/HealthScore";
+import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SparklineChart } from "@/components/dashboard/SparklineChart";
 import { formatBytes, formatUptime } from "@/lib/utils";
-import { Activity, Clock, Wifi, Power, RefreshCw, AlertTriangle, FileJson } from "lucide-react";
+import {
+  Activity,
+  Clock,
+  Wifi,
+  Power,
+  RefreshCw,
+  AlertTriangle,
+  FileJson,
+  Settings2,
+  GripVertical,
+  X,
+  Check,
+} from "lucide-react";
 import { apiClient } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
+
+// ─── Widget ordering ──────────────────────────────────────────────────────────
+
+type WidgetId = "health" | "gauges" | "stats" | "activity" | "services" | "processes" | "quick";
+
+const DEFAULT_ORDER: WidgetId[] = [
+  "health",
+  "gauges",
+  "stats",
+  "activity",
+  "services",
+  "processes",
+  "quick",
+];
+
+const WIDGET_LABELS: Record<WidgetId, string> = {
+  health:    "System Health",
+  gauges:    "Live Gauges",
+  stats:     "System Stats",
+  activity:  "Recent Activity",
+  services:  "Service Status",
+  processes: "Process Table",
+  quick:     "Quick Actions",
+};
+
+const STORAGE_KEY = "dashboard-widget-order";
+
+function loadOrder(): WidgetId[] {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    if (!raw) return DEFAULT_ORDER;
+    const parsed = JSON.parse(raw) as unknown[];
+    // Validate and fill any missing IDs
+    const valid = parsed.filter((id): id is WidgetId =>
+      DEFAULT_ORDER.includes(id as WidgetId)
+    );
+    // Append any new widget IDs not in the saved order
+    const missing = DEFAULT_ORDER.filter((id) => !valid.includes(id));
+    return [...valid, ...missing];
+  } catch {
+    return DEFAULT_ORDER;
+  }
+}
+
+function saveOrder(order: WidgetId[]) {
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
+  } catch {
+    // Silently ignore storage errors
+  }
+}
 
 // ─── Live Metrics WebSocket ───────────────────────────────────────────────────
 
@@ -64,7 +129,6 @@ function useMetricsWebSocket() {
       if (unmountedRef.current) return;
       setConnected(false);
       wsRef.current = null;
-      // Reconnect after 3 s with exponential back-off handled via fixed 3 s
       reconnectTimerRef.current = setTimeout(connect, 3000);
     };
   }, []);
@@ -258,18 +322,232 @@ function GaugeRow({
   );
 }
 
+// ─── Info cards (uptime / load / network) ─────────────────────────────────────
+
+function InfoCards() {
+  const { stats, networkRxHistory, networkTxHistory } = useSystemStore();
+  if (!stats) return null;
+
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <Clock className="w-3.5 h-3.5" /> Uptime
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xl font-bold">{formatUptime(stats.uptime_seconds)}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            Since {new Date(stats.boot_time * 1000).toLocaleString()}
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <Activity className="w-3.5 h-3.5" /> Load
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xl font-bold tabular-nums">{stats.cpu.load_avg_1.toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {stats.cpu.load_avg_5.toFixed(2)} / {stats.cpu.load_avg_15.toFixed(2)} (5m/15m)
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <Wifi className="w-3.5 h-3.5" /> Network RX
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xl font-bold">
+            {stats.network_interfaces.length > 0
+              ? formatBytes(stats.network_interfaces.filter((i) => i.name !== "lo").reduce((a, b) => a + b.bytes_recv, 0))
+              : "N/A"}
+          </p>
+          <SparklineChart data={networkRxHistory} color="#22c55e" height={28} />
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-1.5">
+            <Wifi className="w-3.5 h-3.5" /> Network TX
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-xl font-bold">
+            {stats.network_interfaces.length > 0
+              ? formatBytes(stats.network_interfaces.filter((i) => i.name !== "lo").reduce((a, b) => a + b.bytes_sent, 0))
+              : "N/A"}
+          </p>
+          <SparklineChart data={networkTxHistory} color="#f59e0b" height={28} />
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
+// ─── Widget reorder panel ─────────────────────────────────────────────────────
+
+interface ReorderPanelProps {
+  order: WidgetId[];
+  onSave: (next: WidgetId[]) => void;
+  onCancel: () => void;
+}
+
+function ReorderPanel({ order, onSave, onCancel }: ReorderPanelProps) {
+  const [draft, setDraft] = useState<WidgetId[]>(order);
+  const dragIndex = useRef<number | null>(null);
+
+  const handleDragStart = (i: number) => {
+    dragIndex.current = i;
+  };
+
+  const handleDragOver = (e: React.DragEvent, i: number) => {
+    e.preventDefault();
+    if (dragIndex.current === null || dragIndex.current === i) return;
+    const next = [...draft];
+    const [moved] = next.splice(dragIndex.current, 1);
+    next.splice(i, 0, moved);
+    dragIndex.current = i;
+    setDraft(next);
+  };
+
+  const handleDrop = () => {
+    dragIndex.current = null;
+  };
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center justify-between text-sm">
+          <span className="flex items-center gap-1.5">
+            <Settings2 className="w-3.5 h-3.5 text-muted-foreground" />
+            Reorder Widgets
+          </span>
+          <div className="flex items-center gap-1.5">
+            <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={onCancel}>
+              <X className="w-3.5 h-3.5" />
+              Cancel
+            </Button>
+            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => onSave(draft)}>
+              <Check className="w-3.5 h-3.5" />
+              Save
+            </Button>
+          </div>
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <ul className="space-y-1.5">
+          {draft.map((id, i) => (
+            <li
+              key={id}
+              draggable
+              onDragStart={() => handleDragStart(i)}
+              onDragOver={(e) => handleDragOver(e, i)}
+              onDrop={handleDrop}
+              className="flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm cursor-grab active:cursor-grabbing select-none"
+            >
+              <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
+              <span>{WIDGET_LABELS[id]}</span>
+            </li>
+          ))}
+        </ul>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Uptime summary query ─────────────────────────────────────────────────────
+
+interface UptimeService {
+  name: string;
+  status: string;
+}
+
+interface UptimeSummary {
+  services: UptimeService[];
+}
+
+function useServicesUpPct(): number {
+  const { data } = useQuery<UptimeSummary>({
+    queryKey: ["uptime-summary"],
+    queryFn: async () => {
+      const res = await apiClient.get<UptimeSummary>("/uptime/summary");
+      return res.data;
+    },
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+    // If the endpoint doesn't exist yet, swallow errors gracefully
+    retry: false,
+  });
+
+  if (!data?.services?.length) return 100;
+  const up = data.services.filter((s) => s.status === "active" || s.status === "running").length;
+  return (up / data.services.length) * 100;
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const { stats, wsConnected, lastUpdated, networkRxHistory, networkTxHistory } = useSystemStore();
+  const { stats, wsConnected, lastUpdated } = useSystemStore();
   const { metrics: liveMetrics, connected: liveWsConnected } = useMetricsWebSocket();
 
   // Use live WS metrics to fill in values when the system store hasn't updated yet,
   // or to show the most recent values streamed at 3-second cadence.
-  const displayCpu  = liveMetrics?.cpu  ?? stats?.cpu.percent;
-  const displayRam  = liveMetrics?.ram  ?? stats?.memory.percent;
-  const displayTemp = liveMetrics?.temp ?? stats?.temperature.cpu;
-  const displayDisk = liveMetrics?.disk ?? stats?.disks.find((d) => d.mountpoint === "/")?.percent;
+  const displayCpu  = liveMetrics?.cpu  ?? stats?.cpu.percent ?? 0;
+  const displayRam  = liveMetrics?.ram  ?? stats?.memory.percent ?? 0;
+  const displayTemp = liveMetrics?.temp ?? stats?.temperature.cpu ?? null;
+  const displayDisk = liveMetrics?.disk ?? stats?.disks.find((d) => d.mountpoint === "/")?.percent ?? 0;
+
+  const servicesUpPct = useServicesUpPct();
+
+  // Widget ordering state
+  const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(loadOrder);
+  const [editMode, setEditMode] = useState(false);
+
+  // Keep order in sync with localStorage on first load
+  useEffect(() => {
+    setWidgetOrder(loadOrder());
+  }, []);
+
+  const handleSaveOrder = (next: WidgetId[]) => {
+    saveOrder(next);
+    setWidgetOrder(next);
+    setEditMode(false);
+  };
+
+  // Widget render map
+  const widgetMap: Record<WidgetId, React.ReactNode> = {
+    health: (
+      <HealthScore
+        cpu={displayCpu}
+        ram={displayRam}
+        disk={displayDisk}
+        temp={displayTemp}
+        servicesUpPct={servicesUpPct}
+      />
+    ),
+    gauges: (
+      <GaugeRow
+        liveCpu={liveMetrics?.cpu}
+        liveRam={liveMetrics?.ram}
+        liveTemp={liveMetrics?.temp}
+        liveDisk={liveMetrics?.disk}
+      />
+    ),
+    stats: <SystemStats />,
+    activity: <ActivityFeed />,
+    services: <ServiceStatus />,
+    processes: <ProcessTable />,
+    quick: <QuickActions />,
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -335,96 +613,42 @@ export default function DashboardPage() {
               Export
             </Button>
           )}
+          {/* Widget reorder toggle */}
+          <Button
+            variant={editMode ? "default" : "outline"}
+            size="sm"
+            className="gap-1.5 h-7 text-xs"
+            onClick={() => setEditMode((prev) => !prev)}
+            title="Reorder dashboard widgets"
+          >
+            <Settings2 className="w-3 h-3" />
+            {editMode ? "Editing…" : "Layout"}
+          </Button>
           <Badge variant={wsConnected ? "success" : "destructive"}>
             {wsConnected ? "Connected" : "Offline"}
           </Badge>
         </div>
       </div>
 
-      {/* Live Gauges row — updated via WS at 3-second cadence */}
-      <GaugeRow
-        liveCpu={displayCpu}
-        liveRam={displayRam}
-        liveTemp={displayTemp}
-        liveDisk={displayDisk}
-      />
-
-      {/* Stats cards */}
-      <SystemStats />
-
-      {stats && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-1.5">
-                <Clock className="w-3.5 h-3.5" /> Uptime
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-bold">{formatUptime(stats.uptime_seconds)}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                Since {new Date(stats.boot_time * 1000).toLocaleString()}
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-1.5">
-                <Activity className="w-3.5 h-3.5" /> Load
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-bold tabular-nums">{stats.cpu.load_avg_1.toFixed(2)}</p>
-              <p className="text-xs text-muted-foreground mt-1">
-                {stats.cpu.load_avg_5.toFixed(2)} / {stats.cpu.load_avg_15.toFixed(2)} (5m/15m)
-              </p>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-1.5">
-                <Wifi className="w-3.5 h-3.5" /> Network RX
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-bold">
-                {stats.network_interfaces.length > 0
-                  ? formatBytes(stats.network_interfaces.filter((i) => i.name !== "lo").reduce((a, b) => a + b.bytes_recv, 0))
-                  : "N/A"}
-              </p>
-              <SparklineChart data={networkRxHistory} color="#22c55e" height={28} />
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-1.5">
-                <Wifi className="w-3.5 h-3.5" /> Network TX
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <p className="text-xl font-bold">
-                {stats.network_interfaces.length > 0
-                  ? formatBytes(stats.network_interfaces.filter((i) => i.name !== "lo").reduce((a, b) => a + b.bytes_sent, 0))
-                  : "N/A"}
-              </p>
-              <SparklineChart data={networkTxHistory} color="#f59e0b" height={28} />
-            </CardContent>
-          </Card>
-        </div>
+      {/* Edit mode: show reorder panel */}
+      {editMode && (
+        <ReorderPanel
+          order={widgetOrder}
+          onSave={handleSaveOrder}
+          onCancel={() => setEditMode(false)}
+        />
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2 space-y-4">
-          <ProcessTable />
-          <ServiceStatus />
-        </div>
-        {/* Gift 7: Quick actions */}
-        <div className="space-y-4">
-          <QuickActions />
-        </div>
+      {/* Info cards always shown (uptime, load, network) */}
+      <InfoCards />
+
+      {/* Widgets in user-defined order */}
+      <div className="space-y-6">
+        {widgetOrder.map((id) => (
+          <div key={id}>
+            {widgetMap[id]}
+          </div>
+        ))}
       </div>
     </div>
   );

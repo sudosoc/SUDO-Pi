@@ -1,20 +1,50 @@
-import { Bell, Wifi, WifiOff, Search } from "lucide-react";
+import { Bell, Wifi, WifiOff, Search, Sun, Moon, Monitor, X } from "lucide-react";
 import { useSystemStore } from "@/stores/systemStore";
 import { useNotificationStore } from "@/stores/notificationStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useState } from "react";
 import { formatUptime } from "@/lib/utils";
+import { useTheme } from "@/contexts/ThemeContext";
 
 interface HeaderProps {
   title: string;
   onOpenPalette: () => void;
 }
 
+function relativeTime(date: Date): string {
+  const diff = Date.now() - new Date(date).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  return `${Math.floor(hrs / 24)}d ago`;
+}
+
 export function Header({ title, onOpenPalette }: HeaderProps) {
   const { wsConnected, stats } = useSystemStore();
-  const { unreadCount, notifications, markAllRead } = useNotificationStore();
+  const { unreadCount, notifications, markAllRead, clearAll, removeNotification } =
+    useNotificationStore();
   const [showNotifications, setShowNotifications] = useState(false);
+  const { theme, setTheme } = useTheme();
+
+  function cycleTheme() {
+    if (theme === "system") setTheme("dark");
+    else if (theme === "dark") setTheme("light");
+    else setTheme("system");
+  }
+
+  const themeIcon =
+    theme === "dark" ? (
+      <Moon className="w-4 h-4" />
+    ) : theme === "light" ? (
+      <Sun className="w-4 h-4" />
+    ) : (
+      <Monitor className="w-4 h-4" />
+    );
+
+  const themeTitle = `Theme: ${theme}`;
 
   return (
     <header className="h-14 flex items-center justify-between px-6 border-b border-border bg-card shrink-0 z-10">
@@ -28,15 +58,22 @@ export function Header({ title, onOpenPalette }: HeaderProps) {
       </div>
 
       <div className="flex items-center gap-2">
-        {/* Gift 3: Command palette trigger */}
+        {/* Search trigger */}
         <button
           onClick={onOpenPalette}
           className="hidden sm:flex items-center gap-2 h-8 px-3 rounded-lg border border-border bg-background/50 text-xs text-muted-foreground hover:bg-secondary hover:text-foreground transition-colors"
         >
           <Search className="w-3 h-3" />
           <span>Search…</span>
-          <kbd className="ml-2 text-[10px] border border-border rounded px-1 py-0.5 font-mono bg-muted">⌘K</kbd>
+          <kbd className="ml-2 text-[10px] border border-border rounded px-1 py-0.5 font-mono bg-muted">
+            ⌘K
+          </kbd>
         </button>
+
+        {/* Theme toggle */}
+        <Button variant="ghost" size="icon" onClick={cycleTheme} title={themeTitle}>
+          {themeIcon}
+        </Button>
 
         {/* WS status */}
         <div
@@ -48,11 +85,14 @@ export function Header({ title, onOpenPalette }: HeaderProps) {
           )}
           title={wsConnected ? "Real-time connected" : "Reconnecting…"}
         >
-          {wsConnected
-            ? <Wifi className="w-3 h-3" />
-            : <WifiOff className="w-3 h-3" />
-          }
-          <span className="hidden sm:inline">{wsConnected ? "Live" : "Offline"}</span>
+          {wsConnected ? (
+            <Wifi className="w-3 h-3" />
+          ) : (
+            <WifiOff className="w-3 h-3" />
+          )}
+          <span className="hidden sm:inline">
+            {wsConnected ? "Live" : "Offline"}
+          </span>
         </div>
 
         {/* Live stats */}
@@ -61,7 +101,11 @@ export function Header({ title, onOpenPalette }: HeaderProps) {
             <span
               className={cn(
                 "font-medium",
-                stats.cpu.percent > 80 ? "text-red-400" : stats.cpu.percent > 50 ? "text-yellow-400" : ""
+                stats.cpu.percent > 80
+                  ? "text-red-400"
+                  : stats.cpu.percent > 50
+                  ? "text-yellow-400"
+                  : ""
               )}
             >
               CPU {stats.cpu.percent.toFixed(0)}%
@@ -69,7 +113,11 @@ export function Header({ title, onOpenPalette }: HeaderProps) {
             <span
               className={cn(
                 "font-medium",
-                stats.memory.percent > 85 ? "text-red-400" : stats.memory.percent > 65 ? "text-yellow-400" : ""
+                stats.memory.percent > 85
+                  ? "text-red-400"
+                  : stats.memory.percent > 65
+                  ? "text-yellow-400"
+                  : ""
               )}
             >
               RAM {stats.memory.percent.toFixed(0)}%
@@ -78,7 +126,11 @@ export function Header({ title, onOpenPalette }: HeaderProps) {
               <span
                 className={cn(
                   "font-medium",
-                  stats.temperature.cpu > 70 ? "text-red-400" : stats.temperature.cpu > 55 ? "text-yellow-400" : ""
+                  stats.temperature.cpu > 70
+                    ? "text-red-400"
+                    : stats.temperature.cpu > 55
+                    ? "text-yellow-400"
+                    : ""
                 )}
               >
                 {stats.temperature.cpu.toFixed(0)}°C
@@ -115,7 +167,19 @@ export function Header({ title, onOpenPalette }: HeaderProps) {
               <div className="absolute right-0 top-10 w-80 bg-card border border-border rounded-lg shadow-xl z-20 overflow-hidden">
                 <div className="flex items-center justify-between px-4 py-2 border-b border-border">
                   <span className="text-sm font-medium">Notifications</span>
-                  <span className="text-xs text-muted-foreground">{notifications.length} total</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs text-muted-foreground">
+                      {notifications.length} total
+                    </span>
+                    {notifications.length > 0 && (
+                      <button
+                        onClick={() => clearAll()}
+                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                      >
+                        Clear all
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className="max-h-80 overflow-y-auto">
                   {notifications.length === 0 ? (
@@ -127,7 +191,7 @@ export function Header({ title, onOpenPalette }: HeaderProps) {
                       <div
                         key={n.id}
                         className={cn(
-                          "px-4 py-3 border-b border-border last:border-0 hover:bg-secondary/50",
+                          "group px-4 py-3 border-b border-border last:border-0 hover:bg-secondary/50",
                           !n.read && "bg-primary/5"
                         )}
                       >
@@ -135,15 +199,34 @@ export function Header({ title, onOpenPalette }: HeaderProps) {
                           <div
                             className={cn(
                               "w-1.5 h-1.5 rounded-full mt-1.5 shrink-0",
-                              n.level === "error"   ? "bg-destructive" :
-                              n.level === "warning" ? "bg-warning"     :
-                              n.level === "success" ? "bg-success"     : "bg-info"
+                              n.level === "error"
+                                ? "bg-destructive"
+                                : n.level === "warning"
+                                ? "bg-warning"
+                                : n.level === "success"
+                                ? "bg-success"
+                                : "bg-info"
                             )}
                           />
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-medium">{n.title}</p>
-                            <p className="text-xs text-muted-foreground mt-0.5 truncate">{n.message}</p>
+                            <p className="text-xs text-muted-foreground mt-0.5 truncate">
+                              {n.message}
+                            </p>
+                            <p className="text-[10px] text-muted-foreground mt-1">
+                              {relativeTime(n.timestamp)}
+                            </p>
                           </div>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeNotification(n.id);
+                            }}
+                            className="opacity-0 group-hover:opacity-100 transition-opacity p-0.5 rounded hover:bg-secondary text-muted-foreground hover:text-foreground shrink-0"
+                            title="Dismiss"
+                          >
+                            <X className="w-3 h-3" />
+                          </button>
                         </div>
                       </div>
                     ))

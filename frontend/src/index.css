@@ -57,6 +57,81 @@
   }
 }
 
+/* ── Light mode ───────────────────────────────────────────────────────────── */
+.light {
+  --background:          0 0%  98%;
+  --foreground:          0 0%   9%;
+  --card:                0 0% 100%;
+  --card-foreground:     0 0%   9%;
+  --popover:             0 0% 100%;
+  --popover-foreground:  0 0%   9%;
+  --primary:             183 82%  38%;
+  --primary-foreground:  0   0% 100%;
+  --secondary:           0 0%  92%;
+  --secondary-foreground:0 0%  20%;
+  --muted:               0 0%  94%;
+  --muted-foreground:    0 0%  45%;
+  --accent:              183 82%  38%;
+  --accent-foreground:   0   0% 100%;
+  --destructive:         0  72%  50%;
+  --destructive-foreground: 0 0% 98%;
+  --border:              0 0%  86%;
+  --input:               0 0%  92%;
+  --ring:                183 82%  38%;
+  --success:             142 65%  38%;
+  --success-foreground:  0   0% 100%;
+  --warning:             38  90%  45%;
+  --warning-foreground:  0   0%   4%;
+  --info:                183 82%  38%;
+  --info-foreground:     0   0% 100%;
+}
+
+/* ── Accent color palettes (dark mode) ───────────────────────────────────── */
+[data-accent="cyan"]   { --primary: 183 82% 52%; --accent: 183 82% 52%; --ring: 183 82% 52%; }
+[data-accent="purple"] { --primary: 258 90% 66%; --accent: 258 90% 66%; --ring: 258 90% 66%; }
+[data-accent="green"]  { --primary: 142 65% 48%; --accent: 142 65% 48%; --ring: 142 65% 48%; }
+[data-accent="orange"] { --primary:  25 95% 53%; --accent:  25 95% 53%; --ring:  25 95% 53%; }
+[data-accent="blue"]   { --primary: 220 90% 60%; --accent: 220 90% 60%; --ring: 220 90% 60%; }
+[data-accent="rose"]   { --primary: 345 83% 62%; --accent: 345 83% 62%; --ring: 345 83% 62%; }
+
+/* ── Light mode accent overrides (slightly darker primaries for contrast) ── */
+.light[data-accent="cyan"]   { --primary: 183 82% 32%; --accent: 183 82% 32%; --ring: 183 82% 32%; }
+.light[data-accent="purple"] { --primary: 258 80% 55%; --accent: 258 80% 55%; --ring: 258 80% 55%; }
+.light[data-accent="green"]  { --primary: 142 55% 35%; --accent: 142 55% 35%; --ring: 142 55% 35%; }
+.light[data-accent="orange"] { --primary:  25 90% 45%; --accent:  25 90% 45%; --ring:  25 90% 45%; }
+.light[data-accent="blue"]   { --primary: 220 80% 50%; --accent: 220 80% 50%; --ring: 220 80% 50%; }
+.light[data-accent="rose"]   { --primary: 345 75% 52%; --accent: 345 75% 52%; --ring: 345 75% 52%; }
+
+/* ── Page transition animation ───────────────────────────────────────────── */
+@keyframes page-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.page-transition {
+  animation: page-in 150ms ease-out;
+}
+
+/* ── Sidebar tooltip (collapsed nav items with data-tooltip) ─────────────── */
+[data-tooltip] { position: relative; }
+[data-tooltip]:hover::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  white-space: nowrap;
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  color: hsl(var(--foreground));
+  z-index: 100;
+  pointer-events: none;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
 @layer base {
   * {
     @apply border-border;

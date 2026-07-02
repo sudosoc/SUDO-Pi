@@ -130,6 +130,11 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         "flex flex-col h-full bg-card border-r border-border transition-all duration-300 ease-in-out",
         collapsed ? "w-16" : "w-60"
       )}
+      style={
+        collapsed
+          ? { zIndex: 50, overflowY: "auto", overflowX: "visible" }
+          : undefined
+      }
     >
       {/* Logo */}
       <div className="flex items-center justify-between h-14 px-4 border-b border-border shrink-0">
@@ -160,7 +165,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       )}
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto py-2 px-2 space-y-0.5">
+      <nav
+        className="flex-1 py-2 px-2 space-y-0.5"
+        style={
+          collapsed
+            ? { overflowY: "auto", overflowX: "visible" }
+            : { overflowY: "auto", overflowX: "hidden" }
+        }
+      >
         {visibleItems.map((item) => {
           const Icon = item.icon;
           const isActive =
@@ -180,6 +192,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
                 collapsed && "justify-center px-0"
               )}
               title={collapsed ? item.label : undefined}
+              data-tooltip={collapsed ? item.label : undefined}
             >
               <Icon className="w-4 h-4 shrink-0" />
               {!collapsed && <span>{item.label}</span>}
@@ -206,6 +219,7 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
             collapsed && "justify-center px-0"
           )}
           title={collapsed ? "Logout" : undefined}
+          data-tooltip={collapsed ? "Logout" : undefined}
         >
           <LogOut className="w-4 h-4 shrink-0" />
           {!collapsed && <span>Logout</span>}
