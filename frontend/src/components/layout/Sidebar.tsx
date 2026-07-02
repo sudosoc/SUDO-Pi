@@ -6,6 +6,7 @@ import {
   Shield, Terminal, Users, Wifi, Zap, LogOut, MonitorSmartphone,
   Network, Flame, Clock, KeyRound, Activity, Bell, HardDrive,
   Monitor, Server, Gauge, BarChart2, Layers, Store, Archive, Stethoscope,
+  DownloadCloud, ShieldBan,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -48,6 +49,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/network",         icon: Wifi,              label: "Network" },
       { to: "/network-traffic", icon: BarChart2,         label: "Traffic" },
       { to: "/devices",         icon: MonitorSmartphone, label: "Devices" },
+      { to: "/device-control",  icon: ShieldBan,         label: "Device Control", roles: ["admin"] },
       { to: "/vpn",             icon: Network,           label: "VPN",        roles: ["admin", "operator"] },
       { to: "/firewall",        icon: Flame,             label: "Firewall",   roles: ["admin"] },
       { to: "/speedtest",       icon: Gauge,             label: "Speed Test" },
@@ -85,7 +87,8 @@ const NAV_GROUPS: NavGroup[] = [
     items: [
       { to: "/users",    icon: Users,    label: "Users",    roles: ["admin"] },
       { to: "/security", icon: Shield,   label: "Security", roles: ["admin"] },
-      { to: "/backup",   icon: Archive,  label: "Backup",   roles: ["admin"] },
+      { to: "/backup",   icon: Archive,       label: "Backup",   roles: ["admin"] },
+      { to: "/updates",  icon: DownloadCloud, label: "Updates",  roles: ["admin"] },
       { to: "/settings", icon: Settings, label: "Settings", roles: ["admin"] },
     ],
   },

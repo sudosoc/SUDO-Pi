@@ -15,11 +15,14 @@ from slowapi.errors import RateLimitExceeded
 from slowapi.middleware import SlowAPIMiddleware
 from slowapi.util import get_remote_address
 
+import asyncio
+
 from app.api.v1.router import api_router
 from app.core.config import settings
 from app.core.database import create_tables
 from app.core.logging_config import setup_logging
 from app.services.auth_service import AuthService
+from app.services import device_policy_service, os_update_service
 from app.core.database import AsyncSessionFactory
 from app.websockets.system_ws import start_metrics_broadcaster
 
@@ -40,9 +43,21 @@ async def lifespan(app: FastAPI):
         await db.commit()
 
     await start_metrics_broadcaster()
+
+    # Background loops: scheduled OS updates + device-policy re-enforcement.
+    # Startup enforcement runs as a task so a slow tc/iptables pass can't
+    # delay the app from serving requests.
+    background_tasks = [
+        asyncio.create_task(os_update_service.scheduler_loop()),
+        asyncio.create_task(device_policy_service.refresh_loop()),
+        asyncio.create_task(device_policy_service.reapply_on_startup()),
+    ]
     logger.info("{} startup complete. Listening...", settings.APP_NAME)
 
     yield
+
+    for task in background_tasks:
+        task.cancel()
 
     logger.info("{} shutting down", settings.APP_NAME)
 
