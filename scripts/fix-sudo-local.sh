@@ -51,6 +51,24 @@ fi
 
 systemctl restart avahi-daemon && ok "Avahi daemon restarted"
 
+# ── 2b. Publish sudo.local as an explicit mDNS A record ─────────────────────
+# This is the piece that makes Windows resolve sudo.local. Windows sends every
+# ".local" query to mDNS (never to dnsmasq), so we must have Avahi answer with
+# an A record pointing at the AP IP — regardless of the Pi's real hostname.
+info "Installing persistent mDNS alias service (sudo.local → 192.168.4.1)..."
+if ! command -v avahi-publish &>/dev/null; then
+    info "avahi-publish not found — installing avahi-utils..."
+    apt-get install -y avahi-utils >/dev/null 2>&1 || err "Could not install avahi-utils"
+fi
+cp "${REPO_DIR}/configs/systemd/sudo-pi-mdns.service" /etc/systemd/system/sudo-pi-mdns.service
+systemctl daemon-reload
+systemctl enable --now sudo-pi-mdns.service 2>/dev/null || systemctl restart sudo-pi-mdns.service
+if systemctl is-active --quiet sudo-pi-mdns.service; then
+    ok "mDNS alias service running — sudo.local is now advertised"
+else
+    err "mDNS alias service failed — check: journalctl -u sudo-pi-mdns -n 20"
+fi
+
 # ── 3. Add sudo.local to /etc/hosts for local Pi resolution ─────────────────
 info "Adding sudo.local to /etc/hosts..."
 if ! grep -q "sudo.local" /etc/hosts; then
@@ -81,5 +99,6 @@ echo
 echo -e "${GREEN}Done!${RESET} Connect Windows to the 'SUDO-Pi' WiFi, then open:"
 echo -e "  ${CYAN}https://sudo.local${RESET}  or  ${CYAN}https://192.168.4.1${RESET}"
 echo
-echo "If sudo.local still fails on Windows, run on Windows (PowerShell Admin):"
-echo "  Add-DnsClientNrptRule -Namespace '.local' -NameServers '192.168.4.1'"
+echo "Note: flush the Windows DNS cache once after connecting, so the stale"
+echo "sudo.local entry is dropped and the new mDNS record is picked up:"
+echo "  ipconfig /flushdns"

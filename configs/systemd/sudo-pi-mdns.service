@@ -1,0 +1,17 @@
+[Unit]
+Description=SUDO-Pi mDNS alias (publishes sudo.local → AP IP)
+After=network-online.target avahi-daemon.service
+Wants=avahi-daemon.service
+Requires=avahi-daemon.service
+
+[Service]
+# Publish an mDNS A record so any client on the AP (Windows/macOS/Linux/Android)
+# resolves sudo.local to the Pi's access-point IP without needing dnsmasq.
+# avahi-publish stays in the foreground for the lifetime of the record, so
+# systemd keeps it alive; if avahi restarts, Restart=always re-publishes.
+ExecStart=/usr/bin/avahi-publish -a -R sudo.local 192.168.4.1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
