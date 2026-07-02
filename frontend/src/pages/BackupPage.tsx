@@ -4,7 +4,7 @@ import {
   Archive, Cloud, Calendar, FileJson, RefreshCw, Download,
   Trash2, RotateCcw, Plus, CheckCircle2, XCircle, Loader2,
   Clock, HardDrive, AlertTriangle, Wifi, Upload, Play,
-  ChevronDown, Settings2, PlugZap,
+  ChevronDown, PlugZap,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";

@@ -55,10 +55,6 @@ const DEFAULT_COMPOSE = `services:
     restart: unless-stopped
 `;
 
-function createWsUrl(path: string): string {
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}/api/v1${path}`;
-}
 
 function LogsPanel({
   stackName,

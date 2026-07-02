@@ -430,8 +430,6 @@ function ContainerRow({ c }: { c: Container }) {
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function DockerPage() {
-  const queryClient = useQueryClient();
-
   const { data: containers, isLoading: loadingContainers, refetch: refetchContainers } = useQuery({
     queryKey: ["docker-containers"],
     queryFn: async () => {
