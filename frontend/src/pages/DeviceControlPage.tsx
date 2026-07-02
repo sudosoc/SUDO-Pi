@@ -34,10 +34,10 @@ interface DevicePolicy {
 }
 
 interface ApClient {
-  hostname?: string;
-  ip?: string;
-  mac?: string;
-  vendor?: string;
+  hostname?: string | null;
+  ip_address?: string | null;
+  mac_address?: string;
+  signal_dbm?: number | null;
 }
 
 interface MergedDevice {
@@ -88,12 +88,12 @@ function mergeDevices(policies: DevicePolicy[], clients: ApClient[]): MergedDevi
   const byMac = new Map<string, MergedDevice>();
 
   for (const c of clients) {
-    const mac = (c.mac ?? "").toLowerCase();
+    const mac = (c.mac_address ?? "").toLowerCase();
     if (!mac) continue;
     byMac.set(mac, {
       mac,
       hostname: c.hostname || "Unknown device",
-      ip: c.ip ?? null,
+      ip: c.ip_address ?? null,
       online: true,
       policy: null,
     });
