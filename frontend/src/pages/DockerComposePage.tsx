@@ -376,7 +376,7 @@ export default function DockerComposePage() {
     queryKey: ["compose-stacks"],
     queryFn: async () => {
       const { data } = await apiClient.get("/compose/stacks");
-      return data;
+      return Array.isArray(data) ? data : [];
     },
     refetchInterval: 15000,
   });

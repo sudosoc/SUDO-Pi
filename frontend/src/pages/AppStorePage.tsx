@@ -265,7 +265,7 @@ export default function AppStorePage() {
     queryKey: ["app-store-apps"],
     queryFn: async () => {
       const { data } = await apiClient.get("/app-store/apps");
-      return data;
+      return Array.isArray(data) ? data : [];
     },
     refetchInterval: 30000,
   });

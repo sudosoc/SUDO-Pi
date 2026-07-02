@@ -174,7 +174,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
       // Devices
       if (devResult.status === "fulfilled") {
-        const raw = devResult.value.data ?? [];
+        const raw = Array.isArray(devResult.value.data) ? devResult.value.data : [];
         const filtered = raw.filter(
           (d) =>
             d.hostname?.toLowerCase().includes(q) ||
@@ -188,7 +188,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
       // Containers
       if (conResult.status === "fulfilled") {
-        const raw = conResult.value.data ?? [];
+        const raw = Array.isArray(conResult.value.data) ? conResult.value.data : [];
         const filtered = raw.filter(
           (c) =>
             c.name?.toLowerCase().includes(q) ||
@@ -201,7 +201,7 @@ export function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
       // Processes (limit to 5)
       if (procResult.status === "fulfilled") {
-        const raw = procResult.value.data ?? [];
+        const raw = Array.isArray(procResult.value.data) ? procResult.value.data : [];
         const filtered = raw
           .filter(
             (p) =>

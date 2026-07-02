@@ -471,16 +471,13 @@ interface UptimeService {
   status: string;
 }
 
-interface UptimeSummary {
-  services: UptimeService[];
-}
-
 function useServicesUpPct(): number {
-  const { data } = useQuery<UptimeSummary>({
+  // GET /uptime/summary returns a flat array of monitored services
+  const { data } = useQuery<UptimeService[]>({
     queryKey: ["uptime-summary"],
     queryFn: async () => {
-      const res = await apiClient.get<UptimeSummary>("/uptime/summary");
-      return res.data;
+      const res = await apiClient.get("/uptime/summary");
+      return Array.isArray(res.data) ? res.data : [];
     },
     refetchInterval: 30_000,
     staleTime: 20_000,
@@ -488,9 +485,9 @@ function useServicesUpPct(): number {
     retry: false,
   });
 
-  if (!data?.services?.length) return 100;
-  const up = data.services.filter((s) => s.status === "active" || s.status === "running").length;
-  return (up / data.services.length) * 100;
+  if (!data?.length) return 100;
+  const up = data.filter((s) => s.status === "up" || s.status === "active" || s.status === "running").length;
+  return (up / data.length) * 100;
 }
 
 // ─── Main Page ────────────────────────────────────────────────────────────────

@@ -35,7 +35,7 @@ type SortDir  = "asc" | "desc";
 const processApi = {
   list: async (): Promise<Process[]> => {
     const { data } = await apiClient.get("/processes");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   kill: async (pid: number, signal = 15): Promise<void> => {
     await apiClient.post(`/processes/${pid}/kill`, { signal });
@@ -50,22 +50,24 @@ function fmtKb(kb: number): string {
   return `${kb} KB`;
 }
 
-function statColor(stat: string): string {
-  if (stat.startsWith("R")) return "text-green-400";
-  if (stat.startsWith("S")) return "text-cyan-400";
-  if (stat.startsWith("D")) return "text-yellow-400";
-  if (stat.startsWith("Z")) return "text-red-400";
-  if (stat.startsWith("T")) return "text-orange-400";
+function statColor(stat: string | undefined): string {
+  const s = stat ?? "";
+  if (s.startsWith("R")) return "text-green-400";
+  if (s.startsWith("S")) return "text-cyan-400";
+  if (s.startsWith("D")) return "text-yellow-400";
+  if (s.startsWith("Z")) return "text-red-400";
+  if (s.startsWith("T")) return "text-orange-400";
   return "text-muted-foreground";
 }
 
-function statLabel(stat: string): string {
-  if (stat.startsWith("R")) return "Running";
-  if (stat.startsWith("S")) return "Sleeping";
-  if (stat.startsWith("D")) return "Disk wait";
-  if (stat.startsWith("Z")) return "Zombie";
-  if (stat.startsWith("T")) return "Stopped";
-  return stat;
+function statLabel(stat: string | undefined): string {
+  const s = stat ?? "";
+  if (s.startsWith("R")) return "Running";
+  if (s.startsWith("S")) return "Sleeping";
+  if (s.startsWith("D")) return "Disk wait";
+  if (s.startsWith("Z")) return "Zombie";
+  if (s.startsWith("T")) return "Stopped";
+  return s || "—";
 }
 
 function cpuColor(pct: number): string {
@@ -218,9 +220,9 @@ export default function ProcessPage() {
   }, [processes, search, sortKey, sortDir]);
 
   // Summary stats
-  const running  = processes.filter((p) => p.stat.startsWith("R")).length;
-  const sleeping = processes.filter((p) => p.stat.startsWith("S")).length;
-  const zombies  = processes.filter((p) => p.stat.startsWith("Z")).length;
+  const running  = processes.filter((p) => (p.stat ?? "").startsWith("R")).length;
+  const sleeping = processes.filter((p) => (p.stat ?? "").startsWith("S")).length;
+  const zombies  = processes.filter((p) => (p.stat ?? "").startsWith("Z")).length;
   const topCpu   = processes.slice().sort((a, b) => b.cpu - a.cpu).slice(0, 1)[0];
 
   return (

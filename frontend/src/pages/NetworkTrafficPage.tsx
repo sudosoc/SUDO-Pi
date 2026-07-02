@@ -93,7 +93,7 @@ export default function NetworkTrafficPage() {
     queryKey: ["traffic-stats"],
     queryFn: async () => {
       const { data } = await apiClient.get<DeviceStats[]>("/traffic/stats");
-      return data;
+      return Array.isArray(data) ? data : [];
     },
     refetchInterval: 5000,
     staleTime: 4000,

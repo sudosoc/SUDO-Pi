@@ -352,11 +352,11 @@ interface UptimeHistoryRecord {
 const uptimeApi = {
   getSummary: async (): Promise<UptimeService[]> => {
     const { data } = await apiClient.get("/uptime/summary");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   getHistory: async (name: string): Promise<UptimeHistoryRecord[]> => {
     const { data } = await apiClient.get(`/uptime/services/${name}/history?hours=24`);
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   checkNow: async (): Promise<{ checked: number; up: number; down: number }> => {
     const { data } = await apiClient.post("/uptime/check-now");

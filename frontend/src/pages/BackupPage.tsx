@@ -133,11 +133,11 @@ function getTypeLabel(type: string): string {
 const backupApi = {
   list: async (): Promise<BackupRecord[]> => {
     const { data } = await apiClient.get("/backup/list");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
-  diskUsage: async (): Promise<DiskUsage> => {
+  diskUsage: async (): Promise<DiskUsage | null> => {
     const { data } = await apiClient.get("/backup/disk-usage");
-    return data;
+    return data && typeof data === "object" ? data : null;
   },
   createSystem: async (name?: string) => {
     const { data } = await apiClient.post("/backup/system", { name: name || null });
@@ -160,7 +160,7 @@ const backupApi = {
   },
   getSchedule: async (): Promise<BackupSchedule[]> => {
     const { data } = await apiClient.get("/backup/schedule");
-    return data;
+    return Array.isArray(data) ? data : [];
   },
   updateSchedule: async (body: Omit<BackupSchedule, "id" | "last_run_at" | "next_run_at">) => {
     const { data } = await apiClient.put("/backup/schedule", body);
@@ -177,9 +177,9 @@ const backupApi = {
 };
 
 const rcloneApi = {
-  status: async (): Promise<RcloneStatus> => {
+  status: async (): Promise<RcloneStatus | null> => {
     const { data } = await apiClient.get("/rclone/status");
-    return data;
+    return data && typeof data === "object" ? data : null;
   },
   providers: async () => {
     const { data } = await apiClient.get("/rclone/providers");
