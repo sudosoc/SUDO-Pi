@@ -38,7 +38,8 @@ const ROUTE_TITLES: Record<string, string> = {
   "/display":    "Display Manager",
   "/users":      "Users",
   "/security":   "Security",
-  "/settings":   "Settings",
+  "/settings":         "Settings",
+  "/network-traffic":  "Traffic Monitor",
 };
 
 function getTitle(pathname: string): string {

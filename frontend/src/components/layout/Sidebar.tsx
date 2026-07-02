@@ -5,7 +5,7 @@ import {
   Home, Package, Settings,
   Shield, Terminal, Users, Wifi, Zap, LogOut, MonitorSmartphone,
   Network, Flame, Clock, KeyRound, Activity, Bell, HardDrive,
-  Monitor, Server, Gauge,
+  Monitor, Server, Gauge, BarChart2, Layers, Store, Archive,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -26,9 +26,12 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/processes",  icon: Server,          label: "Processes" },
   { to: "/terminal",   icon: Terminal,        label: "Terminal",   roles: ["admin", "operator"] },
   { to: "/files",      icon: FolderOpen,      label: "Files",      roles: ["admin", "operator"] },
-  { to: "/network",    icon: Wifi,            label: "Network" },
+  { to: "/network",         icon: Wifi,       label: "Network" },
+  { to: "/network-traffic", icon: BarChart2, label: "Traffic Monitor" },
   { to: "/packages",   icon: Package,         label: "Packages",   roles: ["admin", "operator"] },
-  { to: "/docker",     icon: Box,             label: "Docker",     roles: ["admin", "operator"] },
+  { to: "/docker",         icon: Box,    label: "Docker",          roles: ["admin", "operator"] },
+  { to: "/docker/compose", icon: Layers, label: "Compose",         roles: ["admin", "operator"] },
+  { to: "/app-store",      icon: Store,  label: "App Store",       roles: ["admin", "operator"] },
   { to: "/bluetooth",  icon: Bluetooth,       label: "Bluetooth" },
   { to: "/gpio",       icon: GitBranch,       label: "GPIO",       roles: ["admin", "operator"] },
   { to: "/devices",    icon: MonitorSmartphone, label: "Devices" },
@@ -41,6 +44,7 @@ const NAV_ITEMS: NavItem[] = [
   { to: "/speedtest",  icon: Gauge,           label: "Speed Test" },
   { to: "/alerts",     icon: Bell,            label: "Alerts",     roles: ["admin"] },
   { to: "/storage",    icon: HardDrive,       label: "Storage" },
+  { to: "/backup",     icon: Archive,         label: "Backup",     roles: ["admin"] },
   { to: "/display",    icon: Monitor,         label: "Display",    roles: ["admin", "operator"] },
   { to: "/users",      icon: Users,           label: "Users",      roles: ["admin"] },
   { to: "/security",   icon: Shield,          label: "Security",   roles: ["admin"] },
@@ -162,6 +166,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           const isActive =
             item.to === "/"
               ? location.pathname === "/"
+              : item.to === "/docker"
+              ? location.pathname === "/docker"
               : location.pathname.startsWith(item.to);
 
           return (

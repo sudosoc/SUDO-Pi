@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { useSystemStore } from "@/stores/systemStore";
 import { SystemStats } from "@/components/dashboard/SystemStats";
@@ -13,6 +13,75 @@ import { formatBytes, formatUptime } from "@/lib/utils";
 import { Activity, Clock, Wifi, Power, RefreshCw, AlertTriangle, FileJson } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
+
+// ─── Live Metrics WebSocket ───────────────────────────────────────────────────
+
+interface LiveMetrics {
+  cpu: number;
+  ram: number;
+  disk: number | null;
+  temp: number | null;
+  rx: number;
+  tx: number;
+  timestamp: number;
+}
+
+function useMetricsWebSocket() {
+  const [metrics, setMetrics] = useState<LiveMetrics | null>(null);
+  const [connected, setConnected] = useState(false);
+  const wsRef = useRef<WebSocket | null>(null);
+  const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const unmountedRef = useRef(false);
+
+  const connect = useCallback(() => {
+    if (unmountedRef.current) return;
+
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    const ws = new WebSocket(`${protocol}//${window.location.host}/api/v1/ws/metrics`);
+    wsRef.current = ws;
+
+    ws.onopen = () => {
+      if (unmountedRef.current) { ws.close(); return; }
+      setConnected(true);
+    };
+
+    ws.onmessage = (e: MessageEvent) => {
+      try {
+        const msg = JSON.parse(e.data as string) as { type: string; data: LiveMetrics };
+        if (msg.type === "metrics") {
+          setMetrics(msg.data);
+        }
+      } catch {
+        // Ignore malformed frames
+      }
+    };
+
+    ws.onerror = () => {
+      // onclose will handle reconnect
+    };
+
+    ws.onclose = () => {
+      if (unmountedRef.current) return;
+      setConnected(false);
+      wsRef.current = null;
+      // Reconnect after 3 s with exponential back-off handled via fixed 3 s
+      reconnectTimerRef.current = setTimeout(connect, 3000);
+    };
+  }, []);
+
+  useEffect(() => {
+    unmountedRef.current = false;
+    connect();
+
+    return () => {
+      unmountedRef.current = true;
+      if (reconnectTimerRef.current) clearTimeout(reconnectTimerRef.current);
+      if (wsRef.current) wsRef.current.close();
+    };
+  }, [connect]);
+
+  return { metrics, connected };
+}
 
 // ─── Quick Actions ────────────────────────────────────────────────────────────
 
@@ -110,12 +179,21 @@ function QuickActions() {
 
 // ─── Gauge Row ────────────────────────────────────────────────────────────────
 
-function GaugeRow() {
+function GaugeRow({
+  liveCpu, liveRam, liveTemp, liveDisk,
+}: {
+  liveCpu?: number; liveRam?: number; liveTemp?: number | null; liveDisk?: number | null;
+}) {
   const { stats } = useSystemStore();
   if (!stats) return null;
 
-  const { cpu, memory, temperature, disks } = stats;
+  const { disks } = stats;
   const primaryDisk = disks.find((d) => d.mountpoint === "/") ?? disks[0];
+
+  const cpu  = liveCpu  ?? stats.cpu.percent;
+  const ram  = liveRam  ?? stats.memory.percent;
+  const temp = liveTemp !== undefined ? liveTemp : stats.temperature.cpu;
+  const disk = liveDisk !== undefined ? (liveDisk ?? primaryDisk?.percent ?? 0) : (primaryDisk?.percent ?? 0);
 
   return (
     <Card>
@@ -129,7 +207,7 @@ function GaugeRow() {
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 justify-items-center">
           <div className="flex flex-col items-center">
             <MetricGauge
-              value={cpu.percent}
+              value={cpu}
               label="CPU"
               colorThresholds={[
                 { value: 0,  color: "#22d3ee" },
@@ -140,7 +218,7 @@ function GaugeRow() {
           </div>
           <div className="flex flex-col items-center">
             <MetricGauge
-              value={memory.percent}
+              value={ram}
               label="RAM"
               colorThresholds={[
                 { value: 0,  color: "#a78bfa" },
@@ -151,7 +229,7 @@ function GaugeRow() {
           </div>
           <div className="flex flex-col items-center">
             <MetricGauge
-              value={temperature.cpu ?? 0}
+              value={temp ?? 0}
               label="Temp"
               unit="°C"
               colorThresholds={[
@@ -159,12 +237,12 @@ function GaugeRow() {
                 { value: 55, color: "#fbbf24" },
                 { value: 70, color: "#f87171" },
               ]}
-              subtitle={temperature.cpu ? `${temperature.cpu.toFixed(1)}°C` : "No sensor"}
+              subtitle={temp != null ? `${temp.toFixed(1)}°C` : "No sensor"}
             />
           </div>
           <div className="flex flex-col items-center">
             <MetricGauge
-              value={primaryDisk?.percent ?? 0}
+              value={disk}
               label="Disk /"
               colorThresholds={[
                 { value: 0,  color: "#4ade80" },
@@ -184,6 +262,14 @@ function GaugeRow() {
 
 export default function DashboardPage() {
   const { stats, wsConnected, lastUpdated, networkRxHistory, networkTxHistory } = useSystemStore();
+  const { metrics: liveMetrics, connected: liveWsConnected } = useMetricsWebSocket();
+
+  // Use live WS metrics to fill in values when the system store hasn't updated yet,
+  // or to show the most recent values streamed at 3-second cadence.
+  const displayCpu  = liveMetrics?.cpu  ?? stats?.cpu.percent;
+  const displayRam  = liveMetrics?.ram  ?? stats?.memory.percent;
+  const displayTemp = liveMetrics?.temp ?? stats?.temperature.cpu;
+  const displayDisk = liveMetrics?.disk ?? stats?.disks.find((d) => d.mountpoint === "/")?.percent;
 
   return (
     <div className="p-6 space-y-6">
@@ -198,13 +284,25 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3 text-sm text-muted-foreground">
+          {liveWsConnected && liveMetrics && (
+            <span
+              className="flex items-center gap-1.5 text-xs font-medium text-green-400"
+              title="Live metrics streaming via WebSocket"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-green-400" />
+              </span>
+              Live
+            </span>
+          )}
           {lastUpdated && (
             <span className="flex items-center gap-1">
               <Clock className="w-3.5 h-3.5" />
               {lastUpdated.toLocaleTimeString()}
             </span>
           )}
-          {/* Gift 10: JSON system report export */}
+          {/* JSON system report export */}
           {stats && (
             <Button
               variant="outline"
@@ -218,10 +316,10 @@ export default function DashboardPage() {
                   kernel: stats.kernel,
                   architecture: stats.architecture,
                   uptime_seconds: stats.uptime_seconds,
-                  cpu: stats.cpu,
-                  memory: stats.memory,
+                  cpu: { ...stats.cpu, live_percent: displayCpu },
+                  memory: { ...stats.memory, live_percent: displayRam },
                   disks: stats.disks,
-                  temperature: stats.temperature,
+                  temperature: { ...stats.temperature, live_cpu: displayTemp },
                   network_interfaces: stats.network_interfaces,
                 };
                 const blob = new Blob([JSON.stringify(report, null, 2)], { type: "application/json" });
@@ -238,13 +336,18 @@ export default function DashboardPage() {
             </Button>
           )}
           <Badge variant={wsConnected ? "success" : "destructive"}>
-            {wsConnected ? "Live" : "Offline"}
+            {wsConnected ? "Connected" : "Offline"}
           </Badge>
         </div>
       </div>
 
-      {/* Gift 5: Live Gauges row */}
-      <GaugeRow />
+      {/* Live Gauges row — updated via WS at 3-second cadence */}
+      <GaugeRow
+        liveCpu={displayCpu}
+        liveRam={displayRam}
+        liveTemp={displayTemp}
+        liveDisk={displayDisk}
+      />
 
       {/* Stats cards */}
       <SystemStats />

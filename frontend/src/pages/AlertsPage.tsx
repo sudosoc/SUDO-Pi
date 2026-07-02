@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Bell, BellOff, Plus, Trash2, RefreshCw, CheckCircle2,
   XCircle, ChevronDown, ChevronUp, Send, ToggleLeft,
+  Activity, Server, Wifi,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -330,6 +331,288 @@ function RuleCard({
   );
 }
 
+// ─── Uptime Types + API ───────────────────────────────────────────────────────
+
+interface UptimeService {
+  service_name: string;
+  current_status: "up" | "down" | "failed" | "unknown";
+  response_ms: number | null;
+  response_ms_avg: number | null;
+  uptime_24h: number | null;
+  uptime_7d: number | null;
+  last_down_at: string | null;
+}
+
+interface UptimeHistoryRecord {
+  checked_at: string;
+  status: "up" | "down" | "failed";
+  response_ms: number | null;
+}
+
+const uptimeApi = {
+  getSummary: async (): Promise<UptimeService[]> => {
+    const { data } = await apiClient.get("/uptime/summary");
+    return data;
+  },
+  getHistory: async (name: string): Promise<UptimeHistoryRecord[]> => {
+    const { data } = await apiClient.get(`/uptime/services/${name}/history?hours=24`);
+    return data;
+  },
+  checkNow: async (): Promise<{ checked: number; up: number; down: number }> => {
+    const { data } = await apiClient.post("/uptime/check-now");
+    return data;
+  },
+};
+
+// ─── Service Sparkline ────────────────────────────────────────────────────────
+
+function ServiceSparkline({ records }: { records: UptimeHistoryRecord[] }) {
+  if (records.length === 0) {
+    return (
+      <div className="flex gap-0.5">
+        {Array.from({ length: 24 }, (_, i) => (
+          <div key={i} className="flex-1 h-4 rounded-sm bg-muted/40" />
+        ))}
+      </div>
+    );
+  }
+
+  // Bucket records by hour-of-day (last 24h)
+  const now = Date.now();
+  const buckets: ("up" | "down" | "failed" | null)[] = Array(24).fill(null);
+  for (const rec of records) {
+    const ageMs = now - new Date(rec.checked_at).getTime();
+    const ageBucket = Math.floor(ageMs / (1000 * 60 * 60));
+    const idx = 23 - Math.min(ageBucket, 23);
+    // If any check in this bucket is down, mark down
+    if (buckets[idx] === null || rec.status !== "up") {
+      buckets[idx] = rec.status;
+    }
+  }
+
+  return (
+    <div className="flex gap-0.5" title="24h status (left=oldest, right=newest)">
+      {buckets.map((status, i) => (
+        <div
+          key={i}
+          className={cn(
+            "flex-1 h-4 rounded-sm",
+            status === "up"     ? "bg-green-500/80"
+            : status === "down" ? "bg-red-500/80"
+            : status === "failed" ? "bg-orange-500/80"
+            : "bg-muted/30",
+          )}
+          title={`${24 - i}h ago: ${status ?? "no data"}`}
+        />
+      ))}
+    </div>
+  );
+}
+
+// ─── Uptime Tab ───────────────────────────────────────────────────────────────
+
+function UptimeTab() {
+  const queryClient = useQueryClient();
+  const [selectedService, setSelectedService] = useState<string | null>(null);
+
+  const { data: summary = [], isLoading } = useQuery({
+    queryKey: ["uptime-summary"],
+    queryFn: uptimeApi.getSummary,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  const { data: history = [] } = useQuery({
+    queryKey: ["uptime-history", selectedService],
+    queryFn: () => uptimeApi.getHistory(selectedService!),
+    enabled: selectedService !== null,
+    staleTime: 30_000,
+  });
+
+  const checkNow = useMutation({
+    mutationFn: uptimeApi.checkNow,
+    onSuccess: (result) => {
+      toast({
+        title: `Check complete: ${result.up}/${result.checked} up`,
+        variant: result.down === 0 ? "success" : "destructive",
+      } as { title: string; variant: "success" | "destructive" });
+      queryClient.invalidateQueries({ queryKey: ["uptime-summary"] });
+    },
+    onError: () => {
+      toast({ title: "Check failed", variant: "destructive" } as { title: string; variant: "destructive" });
+    },
+  });
+
+  const statusColor = (status: UptimeService["current_status"]) => {
+    if (status === "up")     return "bg-green-500";
+    if (status === "down")   return "bg-red-500";
+    if (status === "failed") return "bg-orange-500";
+    return "bg-muted";
+  };
+
+  const pctColor = (pct: number | null) => {
+    if (pct === null)   return "text-muted-foreground";
+    if (pct >= 99.5)    return "text-green-400";
+    if (pct >= 95.0)    return "text-yellow-400";
+    return "text-red-400";
+  };
+
+  return (
+    <div className="space-y-4">
+      <Card>
+        <CardHeader className="flex-row items-center justify-between pb-3">
+          <CardTitle className="flex items-center gap-1.5">
+            <Server className="w-4 h-4 text-muted-foreground" />
+            Service Uptime
+          </CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            className="gap-1.5 h-7 text-xs"
+            loading={checkNow.isPending}
+            onClick={() => checkNow.mutate()}
+          >
+            <RefreshCw className="w-3 h-3" />
+            Check Now
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {isLoading ? (
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div key={i} className="h-14 rounded-lg bg-muted animate-pulse" />
+              ))}
+            </div>
+          ) : summary.length === 0 ? (
+            <div className="flex flex-col items-center py-16 text-muted-foreground">
+              <Wifi className="w-10 h-10 mb-3 opacity-30" />
+              <p className="text-sm">No uptime data yet</p>
+              <p className="text-xs mt-1">Click "Check Now" to run the first check</p>
+            </div>
+          ) : (
+            <div className="space-y-0 divide-y divide-border/50">
+              {summary.map((svc) => (
+                <div
+                  key={svc.service_name}
+                  className={cn(
+                    "py-3 cursor-pointer hover:bg-muted/20 rounded-lg px-2 -mx-2 transition-colors",
+                    selectedService === svc.service_name && "bg-muted/30",
+                  )}
+                  onClick={() =>
+                    setSelectedService(
+                      selectedService === svc.service_name ? null : svc.service_name,
+                    )
+                  }
+                >
+                  <div className="flex items-center gap-3">
+                    {/* Status dot */}
+                    <span
+                      className={cn(
+                        "w-2.5 h-2.5 rounded-full shrink-0",
+                        statusColor(svc.current_status),
+                        svc.current_status === "up" && "ring-2 ring-green-500/20",
+                      )}
+                    />
+
+                    {/* Service name */}
+                    <span className="font-mono text-sm font-medium min-w-0 flex-1 truncate">
+                      {svc.service_name}
+                    </span>
+
+                    {/* Uptime badges */}
+                    <div className="flex items-center gap-3 shrink-0">
+                      <div className="text-right hidden sm:block">
+                        <p className="text-[10px] text-muted-foreground">24h</p>
+                        <p className={cn("text-xs font-bold tabular-nums", pctColor(svc.uptime_24h))}>
+                          {svc.uptime_24h !== null ? `${svc.uptime_24h.toFixed(1)}%` : "—"}
+                        </p>
+                      </div>
+                      <div className="text-right hidden md:block">
+                        <p className="text-[10px] text-muted-foreground">7d</p>
+                        <p className={cn("text-xs font-bold tabular-nums", pctColor(svc.uptime_7d))}>
+                          {svc.uptime_7d !== null ? `${svc.uptime_7d.toFixed(1)}%` : "—"}
+                        </p>
+                      </div>
+                      <div className="text-right hidden sm:block">
+                        <p className="text-[10px] text-muted-foreground">avg ms</p>
+                        <p className="text-xs font-bold tabular-nums text-muted-foreground">
+                          {svc.response_ms_avg !== null ? `${svc.response_ms_avg.toFixed(0)}` : "—"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* 24h sparkline */}
+                  <div className="mt-2 pl-5">
+                    {selectedService === svc.service_name ? (
+                      <ServiceSparkline records={history} />
+                    ) : (
+                      <div className="flex gap-0.5">
+                        {Array.from({ length: 24 }, (_, i) => (
+                          <div
+                            key={i}
+                            className={cn(
+                              "flex-1 h-1.5 rounded-sm",
+                              svc.uptime_24h !== null && svc.uptime_24h >= 99
+                                ? "bg-green-500/60"
+                                : "bg-muted/50",
+                            )}
+                          />
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Last down */}
+                  {svc.last_down_at && (
+                    <p className="text-[10px] text-muted-foreground/60 mt-1 pl-5">
+                      Last down: {new Date(svc.last_down_at).toLocaleString()}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Summary stats */}
+      {summary.length > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            {
+              label: "Services Up",
+              value: summary.filter((s) => s.current_status === "up").length,
+              color: "text-green-400",
+            },
+            {
+              label: "Services Down",
+              value: summary.filter((s) => s.current_status !== "up" && s.current_status !== "unknown").length,
+              color: "text-red-400",
+            },
+            {
+              label: "Avg 24h Uptime",
+              value: (() => {
+                const vals = summary.filter((s) => s.uptime_24h !== null).map((s) => s.uptime_24h as number);
+                if (vals.length === 0) return "—";
+                return `${(vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(1)}%`;
+              })(),
+              color: "text-muted-foreground",
+            },
+          ].map(({ label, value, color }) => (
+            <Card key={label}>
+              <CardContent className="pt-4">
+                <p className={cn("text-2xl font-bold", color)}>{value}</p>
+                <p className="text-xs text-muted-foreground">{label}</p>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── History Tab ──────────────────────────────────────────────────────────────
 
 function HistoryTab() {
@@ -480,6 +763,10 @@ export default function AlertsPage() {
             <Bell className="w-3.5 h-3.5 mr-1.5" />
             Alert Rules
           </TabsTrigger>
+          <TabsTrigger value="uptime">
+            <Activity className="w-3.5 h-3.5 mr-1.5" />
+            Uptime
+          </TabsTrigger>
           <TabsTrigger value="history">
             <ToggleLeft className="w-3.5 h-3.5 mr-1.5" />
             History
@@ -533,6 +820,10 @@ export default function AlertsPage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="uptime" className="mt-4">
+          <UptimeTab />
         </TabsContent>
 
         <TabsContent value="history" className="mt-4">

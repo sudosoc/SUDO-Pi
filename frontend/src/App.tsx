@@ -27,7 +27,11 @@ const AlertsPage      = lazy(() => import("@/pages/AlertsPage"));
 const StoragePage     = lazy(() => import("@/pages/StoragePage"));
 const DisplayPage     = lazy(() => import("@/pages/DisplayPage"));
 const ProcessPage     = lazy(() => import("@/pages/ProcessPage"));
-const SpeedTestPage   = lazy(() => import("@/pages/SpeedTestPage"));
+const SpeedTestPage       = lazy(() => import("@/pages/SpeedTestPage"));
+const NetworkTrafficPage  = lazy(() => import("@/pages/NetworkTrafficPage"));
+const DockerComposePage   = lazy(() => import("@/pages/DockerComposePage"));
+const AppStorePage        = lazy(() => import("@/pages/AppStorePage"));
+const BackupPage          = lazy(() => import("@/pages/BackupPage"));
 
 function ProtectedLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -74,7 +78,11 @@ export default function App() {
           <Route path="/storage"    element={<StoragePage />} />
           <Route path="/display"    element={<DisplayPage />} />
           <Route path="/processes"  element={<ProcessPage />} />
-          <Route path="/speedtest"  element={<SpeedTestPage />} />
+          <Route path="/speedtest"       element={<SpeedTestPage />} />
+          <Route path="/network-traffic" element={<NetworkTrafficPage />} />
+          <Route path="/docker/compose" element={<DockerComposePage />} />
+          <Route path="/app-store"      element={<AppStorePage />} />
+          <Route path="/backup"         element={<BackupPage />} />
           <Route element={<AdminGuard />}>
             <Route path="/users"    element={<UsersPage />} />
             <Route path="/security" element={<SecurityPage />} />

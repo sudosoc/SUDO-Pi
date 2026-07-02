@@ -1,9 +1,10 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Activity, Thermometer, HardDrive, Wifi, Heart, Download } from "lucide-react";
-import { metricsApi, type MetricsPoint } from "@/api/metrics";
+import { Activity, Thermometer, HardDrive, Wifi, Heart, Download, AlertTriangle, AlertCircle } from "lucide-react";
+import { metricsApi, type MetricsPoint, type AnomalyEntry } from "@/api/metrics";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 
 // ─── Hardcoded colors (same palette as Dashboard) ─────────────────────────────
@@ -131,6 +132,152 @@ function EmptyState() {
   );
 }
 
+// ─── Anomaly Banner ───────────────────────────────────────────────────────────
+
+function AnomalyBanner({ anomalies }: { anomalies: AnomalyEntry[] }) {
+  if (anomalies.length === 0) return null;
+  const hasCritical = anomalies.some((a) => a.severity === "critical");
+
+  return (
+    <div
+      className={cn(
+        "rounded-xl border px-4 py-3 flex items-start gap-3",
+        hasCritical
+          ? "border-red-500/40 bg-red-500/8"
+          : "border-yellow-500/40 bg-yellow-500/8",
+      )}
+    >
+      {hasCritical ? (
+        <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+      ) : (
+        <AlertTriangle className="w-5 h-5 text-yellow-400 shrink-0 mt-0.5" />
+      )}
+      <div className="flex-1 min-w-0">
+        <p className={cn("font-semibold text-sm", hasCritical ? "text-red-400" : "text-yellow-400")}>
+          {anomalies.length === 1 ? "Anomaly Detected" : `${anomalies.length} Anomalies Detected`}
+        </p>
+        <ul className="mt-1.5 space-y-1">
+          {anomalies.map((a, i) => (
+            <li key={i} className="text-xs text-muted-foreground flex items-center gap-2 flex-wrap">
+              <Badge
+                className={cn(
+                  "text-[10px] shrink-0",
+                  a.severity === "critical"
+                    ? "bg-red-500/20 text-red-400 border-red-500/30"
+                    : "bg-yellow-500/20 text-yellow-400 border-yellow-500/30",
+                )}
+                variant="outline"
+              >
+                {a.severity}
+              </Badge>
+              <span>{a.message}</span>
+              {a.z_score !== null && (
+                <span className="text-muted-foreground/60 font-mono">z={a.z_score.toFixed(1)}</span>
+              )}
+            </li>
+          ))}
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ─── Anomaly History ─────────────────────────────────────────────────────────
+
+function AnomalyHistory({ hours }: { hours: number }) {
+  const { data: history = [], isLoading } = useQuery({
+    queryKey: ["anomaly-history", hours],
+    queryFn: () => metricsApi.getAnomalyHistory(hours),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-yellow-400" />
+            Anomaly History
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-2">
+            {[1, 2].map((i) => (
+              <div key={i} className="h-10 rounded-lg bg-muted animate-pulse" />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (history.length === 0) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="text-sm flex items-center gap-1.5">
+            <AlertTriangle className="w-3.5 h-3.5 text-yellow-400" />
+            Anomaly History — Last {hours}h
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col items-center py-8 text-muted-foreground gap-2">
+            <Activity className="w-7 h-7 opacity-30" />
+            <p className="text-sm">No anomalies detected in this window</p>
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-1.5">
+          <AlertTriangle className="w-3.5 h-3.5 text-yellow-400" />
+          Anomaly History — Last {hours}h
+          <Badge variant="secondary" className="ml-auto text-[10px]">
+            {history.length} events
+          </Badge>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="pt-0">
+        <div className="space-y-2 max-h-64 overflow-y-auto pr-1">
+          {history.map((entry, i) => (
+            <div
+              key={i}
+              className="rounded-lg border border-border bg-card/50 px-3 py-2 text-xs"
+            >
+              <p className="text-muted-foreground/70 mb-1.5">
+                {new Date(entry.recorded_at).toLocaleString()}
+              </p>
+              <div className="flex flex-wrap gap-2">
+                {entry.anomalies.map((a, j) => (
+                  <span
+                    key={j}
+                    className={cn(
+                      "flex items-center gap-1 rounded px-1.5 py-0.5 font-medium",
+                      a.severity === "critical"
+                        ? "bg-red-500/15 text-red-400"
+                        : "bg-yellow-500/15 text-yellow-400",
+                    )}
+                  >
+                    {a.label}: {a.current_value.toFixed(1)}
+                    {a.z_score !== null && (
+                      <span className="opacity-60 font-mono text-[10px]">z={a.z_score.toFixed(1)}</span>
+                    )}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
 // ─── Pure SVG Line Chart ──────────────────────────────────────────────────────
 // Replaces echarts-for-react entirely for guaranteed color rendering.
 
@@ -141,11 +288,12 @@ const CHART_H = 210;
 
 function SvgLineChart({
   title, icon, series, yLabel = "%", yMin = 0, yMax = 100,
-  tooltipFormatter, hours, empty,
+  tooltipFormatter, hours, empty, anomalyTimestamps,
 }: {
   title: string; icon: React.ReactNode; series: ChartSeries[];
   yLabel?: string; yMin?: number; yMax?: number;
   tooltipFormatter?: (v: number) => string; hours: number; empty: boolean;
+  anomalyTimestamps?: Set<number>;
 }) {
   const svgRef  = useRef<SVGSVGElement>(null);
   const [svgW,  setSvgW]  = useState(600);
@@ -362,6 +510,24 @@ function SvgLineChart({
                 );
               })}
 
+              {/* Anomaly markers — red dots at anomalous timestamps */}
+              {anomalyTimestamps && anomalyTimestamps.size > 0 && series.map((s) =>
+                s.data
+                  .filter(([t]) => anomalyTimestamps.has(t))
+                  .map(([t, v], idx) => (
+                    <circle
+                      key={`anom-${s.name}-${idx}`}
+                      cx={toX(t)}
+                      cy={toY(v)}
+                      r="5"
+                      fill="#f87171"
+                      stroke="#fca5a5"
+                      strokeWidth="1.5"
+                      opacity="0.9"
+                    />
+                  ))
+              )}
+
               {/* Hover crosshair */}
               {hoverXPx !== null && (
                 <line
@@ -422,6 +588,38 @@ export default function MetricsPage() {
     refetchInterval: 60_000,
     staleTime: 30_000,
   });
+
+  const { data: anomalies = [] } = useQuery({
+    queryKey: ["metrics-anomalies"],
+    queryFn:  metricsApi.getAnomalies,
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  const { data: anomalyHistory = [] } = useQuery({
+    queryKey: ["anomaly-history", hours],
+    queryFn:  () => metricsApi.getAnomalyHistory(hours),
+    refetchInterval: 60_000,
+    staleTime: 30_000,
+  });
+
+  // Set of timestamps (ms) where anomalies occurred, for red dot rendering in charts
+  const anomalyTs = useMemo(
+    () => new Set(anomalyHistory.map((e) => e.timestamp)),
+    [anomalyHistory],
+  );
+
+  // Per-metric anomaly timestamp sets for targeted chart highlighting
+  const anomalyTsByMetric = useMemo(() => {
+    const m: Record<string, Set<number>> = {};
+    for (const entry of anomalyHistory) {
+      for (const a of entry.anomalies) {
+        if (!m[a.metric]) m[a.metric] = new Set();
+        m[a.metric].add(entry.timestamp);
+      }
+    }
+    return m;
+  }, [anomalyHistory]);
 
   const hasData = points.length > 0;
   const latest  = hasData ? points[points.length - 1] : null;
@@ -504,6 +702,9 @@ export default function MetricsPage() {
           )}
         </div>
       </div>
+
+      {/* Anomaly banner — only shown when anomalies are active */}
+      {anomalies.length > 0 && <AnomalyBanner anomalies={anomalies} />}
 
       {/* Health score + live stats */}
       {latest && (
@@ -607,6 +808,7 @@ export default function MetricsPage() {
             series={[{ name: "CPU", data: cpuData, color: C.cpu }]}
             yLabel="%" yMax={100} yMin={0}
             hours={hours} empty={!hasData}
+            anomalyTimestamps={anomalyTsByMetric["cpu"]}
           />
           <SvgLineChart
             title="RAM Usage"
@@ -614,6 +816,7 @@ export default function MetricsPage() {
             series={[{ name: "RAM", data: ramData, color: C.ram }]}
             yLabel="%" yMax={100} yMin={0}
             hours={hours} empty={!hasData}
+            anomalyTimestamps={anomalyTsByMetric["ram"]}
           />
           <SvgLineChart
             title="CPU Temperature"
@@ -621,6 +824,7 @@ export default function MetricsPage() {
             series={[{ name: "Temperature", data: tempData, color: tempColor }]}
             yLabel="°C" yMax={100} yMin={0}
             hours={hours} empty={!hasData || !hasTemp}
+            anomalyTimestamps={anomalyTsByMetric["temp"]}
           />
           <SvgLineChart
             title="Network Throughput"
@@ -632,9 +836,13 @@ export default function MetricsPage() {
             yLabel=" B/s" yMax={maxNet * 1.1} yMin={0}
             tooltipFormatter={fmtNetRate}
             hours={hours} empty={!hasData || rates.length === 0}
+            anomalyTimestamps={anomalyTs}
           />
         </div>
       )}
+
+      {/* Anomaly history — shown below charts */}
+      {!isLoading && hasData && <AnomalyHistory hours={hours} />}
     </div>
   );
 }

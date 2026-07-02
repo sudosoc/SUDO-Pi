@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Wifi, WifiOff, Router, RefreshCw,
   Users, Lock, Unlock, Save, Network,
+  ShieldOff, Shield, ScanLine, Globe,
 } from "lucide-react";
 import { networkApi } from "@/api/network";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import type { WifiScanResult } from "@/types";
 import { apiClient } from "@/api/client";
+import { useAuthStore } from "@/stores/authStore";
 
 // ─── Open Ports Types ─────────────────────────────────────────────────────────
 
@@ -212,6 +214,576 @@ function ConnectDialog({
   );
 }
 
+// ─── Ad Blocker Types ─────────────────────────────────────────────────────────
+
+interface AdBlockerStatus {
+  enabled: boolean;
+  domain_count: number;
+  last_updated: string | null;
+  active_lists: string[];
+}
+
+interface BlocklistSource {
+  name: string;
+  url: string;
+  description: string;
+}
+
+// ─── Ad Blocker Tab ───────────────────────────────────────────────────────────
+
+function AdBlockerTab() {
+  const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === "admin";
+  const [selectedLists, setSelectedLists] = useState<string[]>([]);
+
+  const { data: status, isLoading: statusLoading } = useQuery({
+    queryKey: ["ad-blocker-status"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<AdBlockerStatus>("/ad-blocker/status");
+      return data;
+    },
+    refetchInterval: 10000,
+  });
+
+  const { data: availableLists = [] } = useQuery({
+    queryKey: ["ad-blocker-lists"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<BlocklistSource[]>("/ad-blocker/lists");
+      return data;
+    },
+  });
+
+  const enableMutation = useMutation({
+    mutationFn: async (lists: string[]) => {
+      await apiClient.post("/ad-blocker/enable", { lists });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ad-blocker-status"] });
+      toast({ title: "Ad Blocker Enabled", description: "DNS blocklist is active", variant: "success" } as { title: string; description: string; variant: "success" });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not enable ad blocker", variant: "destructive" } as { title: string; description: string; variant: "destructive" });
+    },
+  });
+
+  const disableMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.post("/ad-blocker/disable");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ad-blocker-status"] });
+      toast({ title: "Ad Blocker Disabled", description: "DNS blocking has been removed", variant: "default" } as { title: string; description: string; variant: "default" });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not disable ad blocker", variant: "destructive" } as { title: string; description: string; variant: "destructive" });
+    },
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.post("/ad-blocker/update");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["ad-blocker-status"] });
+      toast({ title: "Blocklist Updated", description: "Domain lists re-downloaded and applied", variant: "success" } as { title: string; description: string; variant: "success" });
+    },
+    onError: () => {
+      toast({ title: "Update Failed", description: "Could not update blocklists", variant: "destructive" } as { title: string; description: string; variant: "destructive" });
+    },
+  });
+
+  const toggleList = (name: string) => {
+    setSelectedLists((prev) =>
+      prev.includes(name) ? prev.filter((n) => n !== name) : [...prev, name]
+    );
+  };
+
+  const isBusy = enableMutation.isPending || disableMutation.isPending || updateMutation.isPending;
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Status Card */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between pb-3">
+            <CardTitle>Status</CardTitle>
+            <div className="flex items-center gap-2">
+              <span className={cn("status-dot", status?.enabled ? "running" : "stopped")} />
+              <Badge variant={status?.enabled ? "success" : "muted"}>
+                {status?.enabled ? "Active" : "Disabled"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-3 text-sm">
+            {statusLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-4 bg-muted rounded animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <>
+                <div className="flex justify-between">
+                  <span className="text-muted-foreground">Domains Blocked</span>
+                  <span className="font-mono font-bold text-green-400">
+                    {status?.domain_count.toLocaleString() ?? 0}
+                  </span>
+                </div>
+                {status?.last_updated && (
+                  <div className="flex justify-between">
+                    <span className="text-muted-foreground">Last Updated</span>
+                    <span className="text-xs">{new Date(status.last_updated).toLocaleString()}</span>
+                  </div>
+                )}
+                {status?.active_lists && status.active_lists.length > 0 && (
+                  <div>
+                    <p className="text-muted-foreground mb-1">Active Lists</p>
+                    <div className="flex flex-wrap gap-1">
+                      {status.active_lists.map((l) => (
+                        <Badge key={l} variant="outline" className="text-[10px]">{l}</Badge>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {isAdmin && status?.enabled && (
+                  <div className="flex gap-2 pt-1">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1"
+                      onClick={() => updateMutation.mutate()}
+                      loading={updateMutation.isPending}
+                      disabled={isBusy}
+                    >
+                      <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+                      Update Lists
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex-1 text-destructive hover:text-destructive"
+                      onClick={() => disableMutation.mutate()}
+                      loading={disableMutation.isPending}
+                      disabled={isBusy}
+                    >
+                      <ShieldOff className="w-3.5 h-3.5 mr-1.5" />
+                      Disable
+                    </Button>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Blocklist Selector */}
+        {isAdmin && (
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle>Blocklist Sources</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {availableLists.map((list) => (
+                <label
+                  key={list.name}
+                  className={cn(
+                    "flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors",
+                    selectedLists.includes(list.name)
+                      ? "border-primary/50 bg-primary/5"
+                      : "border-border/50 hover:border-border hover:bg-secondary/30"
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedLists.includes(list.name)}
+                    onChange={() => toggleList(list.name)}
+                    className="mt-0.5 accent-primary"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium">{list.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{list.description}</p>
+                  </div>
+                </label>
+              ))}
+              <Button
+                className="w-full mt-2"
+                disabled={selectedLists.length === 0 || isBusy}
+                loading={enableMutation.isPending}
+                onClick={() => enableMutation.mutate(selectedLists)}
+              >
+                <Shield className="w-4 h-4 mr-1.5" />
+                Enable with {selectedLists.length || "selected"} list{selectedLists.length !== 1 ? "s" : ""}
+              </Button>
+              {enableMutation.isPending && (
+                <p className="text-xs text-muted-foreground text-center animate-pulse">
+                  Downloading and parsing blocklists — this may take a minute…
+                </p>
+              )}
+            </CardContent>
+          </Card>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ─── Port Scanner Types ───────────────────────────────────────────────────────
+
+interface ScannedPort {
+  port: number;
+  service: string;
+}
+
+interface ScannedDevice {
+  ip: string;
+  hostname: string | null;
+  mac: string;
+  open_ports: ScannedPort[];
+  scan_time_ms: number;
+}
+
+// ─── Port Scanner Tab ─────────────────────────────────────────────────────────
+
+const SERVICE_BADGE_COLOR: Record<string, string> = {
+  SSH: "bg-red-500/15 text-red-400 border-red-500/20",
+  HTTP: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+  HTTPS: "bg-blue-500/15 text-blue-400 border-blue-500/20",
+  "HTTP Alt": "bg-blue-500/15 text-blue-400 border-blue-500/20",
+  "HTTPS Alt": "bg-blue-500/15 text-blue-400 border-blue-500/20",
+  MySQL: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+  PostgreSQL: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+  Redis: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+  MongoDB: "bg-amber-500/15 text-amber-400 border-amber-500/20",
+};
+
+function serviceBadgeClass(service: string): string {
+  return (
+    SERVICE_BADGE_COLOR[service] ?? "bg-secondary text-muted-foreground border-border"
+  );
+}
+
+function PortScannerTab() {
+  const queryClient = useQueryClient();
+  const [scanning, setScanning] = useState(false);
+
+  const { data: devices = [], isFetching } = useQuery({
+    queryKey: ["port-scan-cached"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<ScannedDevice[]>("/port-scanner/cached");
+      return data;
+    },
+    enabled: false,
+    staleTime: 55000,
+  });
+
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      const { data } = await apiClient.get<ScannedDevice[]>("/port-scanner/scan");
+      queryClient.setQueryData(["port-scan-cached"], data);
+    } catch {
+      toast({ title: "Scan Failed", description: "Could not complete port scan", variant: "destructive" } as { title: string; description: string; variant: "destructive" });
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const isLoading = scanning || isFetching;
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="flex items-center justify-between">
+        <p className="text-sm text-muted-foreground">
+          Scans all AP clients ({devices.length} device{devices.length !== 1 ? "s" : ""} found)
+        </p>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={handleScan}
+          disabled={isLoading}
+        >
+          <ScanLine className={cn("w-3.5 h-3.5 mr-1.5", isLoading && "animate-pulse")} />
+          {isLoading ? "Scanning…" : "Scan Network"}
+        </Button>
+      </div>
+
+      {isLoading && devices.length === 0 ? (
+        <div className="space-y-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Card key={i}>
+              <CardContent className="pt-4 pb-4">
+                <div className="space-y-2">
+                  <div className="h-4 w-32 bg-muted rounded animate-pulse" />
+                  <div className="h-3 w-48 bg-muted rounded animate-pulse" />
+                  <div className="flex gap-2 mt-3">
+                    {Array.from({ length: 3 }).map((_, j) => (
+                      <div key={j} className="h-5 w-16 bg-muted rounded animate-pulse" />
+                    ))}
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      ) : devices.length === 0 ? (
+        <Card>
+          <CardContent className="flex flex-col items-center py-16 text-muted-foreground">
+            <ScanLine className="w-10 h-10 mb-3 opacity-30" />
+            <p className="text-sm font-medium">No devices found on AP network</p>
+            <p className="text-xs mt-1 opacity-70">Click "Scan Network" to discover devices</p>
+          </CardContent>
+        </Card>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          {devices.map((device) => (
+            <Card key={device.ip}>
+              <CardHeader className="pb-2">
+                <div className="flex items-start justify-between gap-2">
+                  <div>
+                    <CardTitle className="text-base">
+                      {device.hostname ?? device.ip}
+                    </CardTitle>
+                    {device.hostname && (
+                      <p className="text-xs font-mono text-muted-foreground mt-0.5">
+                        {device.ip}
+                      </p>
+                    )}
+                    <p className="text-xs font-mono text-muted-foreground">
+                      {device.mac}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <Badge variant="outline" className="text-[10px]">
+                      {device.open_ports.length} port{device.open_ports.length !== 1 ? "s" : ""}
+                    </Badge>
+                    <p className="text-[10px] text-muted-foreground mt-1">
+                      {device.scan_time_ms}ms
+                    </p>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {device.open_ports.length === 0 ? (
+                  <p className="text-xs text-muted-foreground">No open ports found</p>
+                ) : (
+                  <div className="flex flex-wrap gap-1.5">
+                    {device.open_ports.map(({ port, service }) => (
+                      <span
+                        key={port}
+                        className={cn(
+                          "inline-flex items-center gap-1 px-2 py-0.5 rounded border text-[11px] font-medium",
+                          serviceBadgeClass(service)
+                        )}
+                      >
+                        <span className="font-mono">{port}</span>
+                        <span className="opacity-70">{service}</span>
+                      </span>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Captive Portal Tab ───────────────────────────────────────────────────────
+
+interface PortalStatus {
+  enabled: boolean;
+  allowed_macs: string[];
+  title: string;
+  message: string;
+}
+
+function CaptivePortalTab() {
+  const queryClient = useQueryClient();
+  const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === "admin";
+  const [portalTitle, setPortalTitle] = useState("Welcome to SUDO-Pi");
+  const [portalMessage, setPortalMessage] = useState(
+    "Please accept the terms to connect to the internet."
+  );
+
+  const { data: status, isLoading: statusLoading } = useQuery({
+    queryKey: ["captive-portal-status"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<PortalStatus>("/captive-portal/status");
+      return data;
+    },
+    refetchInterval: 10000,
+  });
+
+  const enableMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.post("/captive-portal/enable", { title: portalTitle, message: portalMessage });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["captive-portal-status"] });
+      toast({ title: "Captive Portal Enabled", description: "HTTP traffic will be redirected", variant: "success" } as { title: string; description: string; variant: "success" });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not enable captive portal", variant: "destructive" } as { title: string; description: string; variant: "destructive" });
+    },
+  });
+
+  const disableMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.post("/captive-portal/disable");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["captive-portal-status"] });
+      toast({ title: "Captive Portal Disabled", description: "Traffic redirect removed", variant: "default" } as { title: string; description: string; variant: "default" });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not disable captive portal", variant: "destructive" } as { title: string; description: string; variant: "destructive" });
+    },
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: async () => {
+      await apiClient.post("/captive-portal/clear-allowed");
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["captive-portal-status"] });
+      toast({ title: "Cleared", description: "All allowed devices removed", variant: "success" } as { title: string; description: string; variant: "success" });
+    },
+    onError: () => {
+      toast({ title: "Failed", description: "Could not clear allowed devices", variant: "destructive" } as { title: string; description: string; variant: "destructive" });
+    },
+  });
+
+  const isBusy = enableMutation.isPending || disableMutation.isPending || clearMutation.isPending;
+
+  return (
+    <div className="space-y-4 mt-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* Status + Controls */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between pb-3">
+            <CardTitle>Portal Status</CardTitle>
+            <div className="flex items-center gap-2">
+              <span className={cn("status-dot", status?.enabled ? "running" : "stopped")} />
+              <Badge variant={status?.enabled ? "success" : "muted"}>
+                {status?.enabled ? "Active" : "Disabled"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {statusLoading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <div key={i} className="h-4 bg-muted rounded animate-pulse" />
+                ))}
+              </div>
+            ) : (
+              <>
+                {status?.enabled && (
+                  <p className="text-xs text-muted-foreground">
+                    New AP clients are redirected to the captive portal on port 80.
+                  </p>
+                )}
+                {isAdmin && (
+                  <div className="space-y-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Portal Title</label>
+                      <Input
+                        value={portalTitle}
+                        onChange={(e) => setPortalTitle(e.target.value)}
+                        placeholder="Welcome title"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground mb-1 block">Message</label>
+                      <textarea
+                        value={portalMessage}
+                        onChange={(e) => setPortalMessage(e.target.value)}
+                        placeholder="Message shown to users"
+                        rows={3}
+                        className="w-full rounded-md border border-input bg-background px-3 py-2 text-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring resize-none"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        className="flex-1"
+                        onClick={() => enableMutation.mutate()}
+                        loading={enableMutation.isPending}
+                        disabled={isBusy}
+                      >
+                        <Globe className="w-3.5 h-3.5 mr-1.5" />
+                        {status?.enabled ? "Update & Re-enable" : "Enable Portal"}
+                      </Button>
+                      {status?.enabled && (
+                        <Button
+                          variant="outline"
+                          className="text-destructive hover:text-destructive"
+                          onClick={() => disableMutation.mutate()}
+                          loading={disableMutation.isPending}
+                          disabled={isBusy}
+                        >
+                          Disable
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Allowed Devices */}
+        <Card>
+          <CardHeader className="flex-row items-center justify-between pb-3">
+            <CardTitle>Allowed Devices ({status?.allowed_macs.length ?? 0})</CardTitle>
+            {isAdmin && (status?.allowed_macs.length ?? 0) > 0 && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-destructive hover:text-destructive h-7 text-xs"
+                onClick={() => clearMutation.mutate()}
+                loading={clearMutation.isPending}
+                disabled={isBusy}
+              >
+                Clear All
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            <ScrollArea className="h-48">
+              {!status?.allowed_macs.length ? (
+                <div className="flex flex-col items-center justify-center h-32 text-muted-foreground">
+                  <Users className="w-8 h-8 mb-2 opacity-40" />
+                  <p className="text-sm">No devices have accepted the portal yet</p>
+                </div>
+              ) : (
+                <div className="space-y-1.5">
+                  {status.allowed_macs.map((mac) => (
+                    <div
+                      key={mac}
+                      className="flex items-center gap-2 px-3 py-2 rounded bg-secondary/30"
+                    >
+                      <span className="w-2 h-2 rounded-full bg-green-400 shrink-0" />
+                      <span className="font-mono text-xs">{mac}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// ─── Main Page ─────────────────────────────────────────────────────────────────
+
 export default function NetworkPage() {
   const queryClient = useQueryClient();
   const [connectTarget, setConnectTarget] = useState<WifiScanResult | null>(null);
@@ -291,6 +863,18 @@ export default function NetworkPage() {
           <TabsTrigger value="ports">
             <Network className="w-3.5 h-3.5 mr-1.5" />
             Open Ports
+          </TabsTrigger>
+          <TabsTrigger value="adblocker">
+            <Shield className="w-3.5 h-3.5 mr-1.5" />
+            Ad Blocker
+          </TabsTrigger>
+          <TabsTrigger value="scanner">
+            <ScanLine className="w-3.5 h-3.5 mr-1.5" />
+            Port Scanner
+          </TabsTrigger>
+          <TabsTrigger value="portal">
+            <Globe className="w-3.5 h-3.5 mr-1.5" />
+            Captive Portal
           </TabsTrigger>
         </TabsList>
 
@@ -584,6 +1168,18 @@ export default function NetworkPage() {
         {/* Gift 6: Open ports tab */}
         <TabsContent value="ports">
           <OpenPortsTab />
+        </TabsContent>
+
+        <TabsContent value="adblocker">
+          <AdBlockerTab />
+        </TabsContent>
+
+        <TabsContent value="scanner">
+          <PortScannerTab />
+        </TabsContent>
+
+        <TabsContent value="portal">
+          <CaptivePortalTab />
         </TabsContent>
       </Tabs>
     </div>

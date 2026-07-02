@@ -26,6 +26,16 @@ from app.api.v1 import (
     speedtest,
     display,
     processes,
+    compose,
+    app_store,
+    traffic,
+    ad_blocker,
+    port_scanner,
+    captive_portal,
+    uptime,
+    ws_metrics,
+    backup,
+    rclone,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -53,3 +63,13 @@ api_router.include_router(storage.router)
 api_router.include_router(speedtest.router)
 api_router.include_router(display.router)
 api_router.include_router(processes.router)
+api_router.include_router(compose.router)
+api_router.include_router(app_store.router)
+api_router.include_router(traffic.router)
+api_router.include_router(ad_blocker.router)
+api_router.include_router(port_scanner.router)
+api_router.include_router(captive_portal.router)
+api_router.include_router(uptime.router)
+api_router.include_router(ws_metrics.router)
+api_router.include_router(backup.router)
+api_router.include_router(rclone.router)

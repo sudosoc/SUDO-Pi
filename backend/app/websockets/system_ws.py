@@ -66,9 +66,37 @@ async def _record_metrics_loop() -> None:
                 logger.error("Metrics prune error: {}", exc)
 
 
+_UPTIME_INTERVAL = 60  # seconds between uptime checks
+
+
+async def _uptime_check_loop() -> None:
+    """Check all monitored services every 60 seconds and persist results."""
+    from app.services.uptime_service import run_uptime_check, prune_old_uptime_records
+
+    logger.info("Uptime monitor loop started (interval={}s)", _UPTIME_INTERVAL)
+    prune_counter = 0
+    while True:
+        await asyncio.sleep(_UPTIME_INTERVAL)
+        try:
+            async with AsyncSessionFactory() as db:
+                await run_uptime_check(db)
+        except Exception as exc:
+            logger.error("Uptime check error: {}", exc)
+
+        prune_counter += _UPTIME_INTERVAL
+        if prune_counter >= _PRUNE_INTERVAL:
+            prune_counter = 0
+            try:
+                async with AsyncSessionFactory() as db:
+                    await prune_old_uptime_records(db)
+            except Exception as exc:
+                logger.error("Uptime prune error: {}", exc)
+
+
 async def start_metrics_broadcaster() -> None:
     asyncio.create_task(_broadcast_system_metrics_loop())
     asyncio.create_task(_record_metrics_loop())
+    asyncio.create_task(_uptime_check_loop())
 
 
 async def handle_system_websocket(websocket: WebSocket) -> None:
