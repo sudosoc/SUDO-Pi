@@ -191,6 +191,11 @@ async def enable(lists: list[str]) -> dict:
     if proc_conf.returncode != 0:
         raise RuntimeError(f"Failed to write dnsmasq conf: {err2.decode(errors='replace')}")
 
+    # Ensure the main config actually loads /etc/dnsmasq.d/ before restarting,
+    # otherwise the blocklist include we just wrote is ignored.
+    from app.services import dns_service
+    await dns_service.ensure_conf_dir_loaded()
+
     # Restart dnsmasq
     code, _, err3 = await _run(["sudo", "systemctl", "restart", "dnsmasq"], timeout=15.0)
     if code != 0:

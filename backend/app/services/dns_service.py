@@ -73,6 +73,26 @@ async def _read_conf() -> str:
     return out if code == 0 else ""
 
 
+async def ensure_conf_dir_loaded() -> None:
+    """Guarantee the main dnsmasq config loads /etc/dnsmasq.d/.
+
+    Older SUDO-Pi installs shipped a /etc/dnsmasq.conf without a conf-dir
+    directive, so every drop-in (ad-blocker, DNS records, static leases) was
+    written but silently ignored. This self-heals that in place, idempotently,
+    so a plain backend deploy is enough — no full re-setup required.
+    """
+    code, out = await _run(["cat", "/etc/dnsmasq.conf"], timeout=5.0)
+    if code == 0 and "conf-dir=/etc/dnsmasq.d" in out:
+        return
+    await _run(
+        ["sudo", "sh", "-c",
+         "grep -q '^conf-dir=/etc/dnsmasq.d' /etc/dnsmasq.conf 2>/dev/null || "
+         "echo 'conf-dir=/etc/dnsmasq.d/,*.conf' >> /etc/dnsmasq.conf"],
+        timeout=8.0,
+    )
+    logger.info("dnsmasq conf-dir directive ensured in /etc/dnsmasq.conf")
+
+
 def _parse(raw: str) -> tuple[list[dict], list[dict]]:
     records: list[dict] = []
     leases: list[dict] = []
@@ -113,6 +133,7 @@ def _render(records: list[dict], leases: list[dict]) -> str:
 
 
 async def _write_and_reload(records: list[dict], leases: list[dict]) -> None:
+    await ensure_conf_dir_loaded()
     content = _render(records, leases)
     # tee via sudo so the unprivileged service user can write to /etc
     proc = await asyncio.create_subprocess_exec(

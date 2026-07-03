@@ -73,6 +73,19 @@ fi
 nginx -t
 ok "Nginx config valid"
 
+# ── 5b. Ensure dnsmasq loads its drop-in dir ─────────────────────────────────
+# DNS records, static reservations and the ad-blocker all write to
+# /etc/dnsmasq.d/*.conf — which dnsmasq ignores unless conf-dir is set.
+if [[ -f /etc/dnsmasq.conf ]]; then
+    if ! grep -q '^conf-dir=/etc/dnsmasq.d' /etc/dnsmasq.conf; then
+        echo 'conf-dir=/etc/dnsmasq.d/,*.conf' >> /etc/dnsmasq.conf
+        systemctl restart dnsmasq 2>/dev/null || true
+        ok "Enabled dnsmasq drop-in dir (/etc/dnsmasq.d/) — DNS records & ad-blocker now apply"
+    else
+        ok "dnsmasq drop-in dir already enabled"
+    fi
+fi
+
 # ── 6. Internet sharing: auto-apply on boot + on link changes ───────────────
 info "Installing internet-sharing auto-apply..."
 chmod +x "${REPO_DIR}/scripts/internet-sharing.sh"

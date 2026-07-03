@@ -54,10 +54,12 @@ function metaFor(image: string): { label: string | null; accent: string } {
   return { label: null, accent: "text-primary" };
 }
 
-// Parse docker ports string: "0.0.0.0:8096->8096/tcp, :::8096->8096/tcp"
+// Parse the backend's docker ports string. The API formats each published
+// port as "<hostPort>-><containerPort>/proto" (e.g. "8096->8096/tcp"), joined
+// by ", ". The host port is the number immediately before "->".
 function parsePorts(ports: string): number[] {
   const hostPorts = new Set<number>();
-  const re = /(?:0\.0\.0\.0|:::|\[::\]):(\d+)->/g;
+  const re = /(\d+)->/g;
   let m: RegExpExecArray | null;
   while ((m = re.exec(ports)) !== null) {
     hostPorts.add(Number(m[1]));
