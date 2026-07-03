@@ -6,6 +6,7 @@ import {
   Bell, HardDrive, Monitor, Users, Shield, Settings, MonitorSmartphone,
   Server, Search, ArrowRight, Loader2, Stethoscope,
   RefreshCw, Power, Gauge, Archive, Globe2,
+  LayoutGrid, Globe, Workflow, DownloadCloud, ShieldBan, BarChart2, Store, Layers,
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -96,6 +97,14 @@ const ENTRIES: PaletteEntry[] = [
   { to: "/security",  label: "Security",        icon: Shield,            tags: ["fail2ban", "hardening"] },
   { to: "/settings",  label: "Settings",        icon: Settings,          tags: ["config", "theme", "preferences"] },
   { to: "/diagnostics", label: "Diagnostics",   icon: Stethoscope,       tags: ["health", "self-check", "status", "troubleshoot"] },
+  { to: "/services",    label: "Services",       icon: LayoutGrid,        tags: ["apps", "launch", "web ui", "jellyfin", "portainer"] },
+  { to: "/dns",         label: "DNS & DHCP",     icon: Globe,             tags: ["dns", "dhcp", "hostname", "static ip", "lease", "dnsmasq"] },
+  { to: "/automations", label: "Automations",    icon: Workflow,          tags: ["rules", "triggers", "actions", "ifttt", "alerts"] },
+  { to: "/updates",     label: "System Updates", icon: DownloadCloud,     tags: ["apt", "upgrade", "packages", "security"] },
+  { to: "/device-control", label: "Device Control", icon: ShieldBan,      tags: ["bandwidth", "limit", "block", "parental", "curfew"] },
+  { to: "/network-traffic", label: "Traffic Monitor", icon: BarChart2,    tags: ["bandwidth", "usage", "per-device"] },
+  { to: "/app-store",   label: "App Store",      icon: Store,             tags: ["install", "apps", "catalog"] },
+  { to: "/docker/compose", label: "Compose",     icon: Layers,            tags: ["stacks", "compose", "yaml"] },
 ];
 
 // ---------------------------------------------------------------------------

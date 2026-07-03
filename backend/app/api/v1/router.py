@@ -39,6 +39,8 @@ from app.api.v1 import (
     diagnostics,
     os_updates,
     device_policies,
+    dns,
+    automations,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -79,3 +81,5 @@ api_router.include_router(rclone.router)
 api_router.include_router(diagnostics.router)
 api_router.include_router(os_updates.router)
 api_router.include_router(device_policies.router)
+api_router.include_router(dns.router)
+api_router.include_router(automations.router)

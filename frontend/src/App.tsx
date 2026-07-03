@@ -36,6 +36,9 @@ const BackupPage          = lazy(() => import("@/pages/BackupPage"));
 const DiagnosticsPage     = lazy(() => import("@/pages/DiagnosticsPage"));
 const UpdatesPage         = lazy(() => import("@/pages/UpdatesPage"));
 const DeviceControlPage   = lazy(() => import("@/pages/DeviceControlPage"));
+const ServicesPage        = lazy(() => import("@/pages/ServicesPage"));
+const DnsPage             = lazy(() => import("@/pages/DnsPage"));
+const AutomationsPage     = lazy(() => import("@/pages/AutomationsPage"));
 
 function ProtectedLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -91,6 +94,9 @@ export default function App() {
           <Route path="/diagnostics"    element={<DiagnosticsPage />} />
           <Route path="/updates"        element={<UpdatesPage />} />
           <Route path="/device-control" element={<DeviceControlPage />} />
+          <Route path="/services"       element={<ServicesPage />} />
+          <Route path="/dns"            element={<DnsPage />} />
+          <Route path="/automations"    element={<AutomationsPage />} />
             <Route element={<AdminGuard />}>
               <Route path="/users"    element={<UsersPage />} />
               <Route path="/security" element={<SecurityPage />} />

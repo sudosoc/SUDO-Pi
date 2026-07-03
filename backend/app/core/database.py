@@ -75,7 +75,7 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def create_tables() -> None:
     from app.models import (  # noqa: F401
         user, audit, network, session as sess, metrics, alerts, uptime, backup,
-        os_update, device_policy,
+        os_update, device_policy, automation,
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
