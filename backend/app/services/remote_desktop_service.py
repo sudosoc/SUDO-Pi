@@ -146,8 +146,26 @@ async def install() -> dict:
 # ─── Password / xstartup provisioning ────────────────────────────────────────
 
 
+def _passwd_file_valid() -> bool:
+    """A TigerVNC obfuscated password file is exactly 8 raw bytes.
+
+    Anything else (0 bytes, mojibake from a past text-decode bug, etc.) is
+    corrupt and guarantees "Authentication failed" — regenerate it.
+    """
+    try:
+        return PASSWD_FILE.exists() and PASSWD_FILE.stat().st_size == 8
+    except Exception:
+        return False
+
+
 async def _ensure_provisioned() -> str:
-    """Ensure the VNC dir, password and xstartup exist. Returns the plaintext pw."""
+    """Ensure the VNC dir, password and xstartup exist. Returns the plaintext pw.
+
+    CRITICAL: `vncpasswd -f` emits BINARY data on stdout. It must never pass
+    through Python's text decoding (which mangles it irreversibly) — so the
+    whole generation is a single shell pipeline that writes straight to disk:
+        printf '%s\\n' <pw> | vncpasswd -f > passwd
+    """
     await _run(["sudo", "mkdir", "-p", str(VNC_DIR)], timeout=5.0)
 
     password = None
@@ -157,19 +175,30 @@ async def _ensure_provisioned() -> str:
         except Exception:
             password = None
 
-    if not password or not PASSWD_FILE.exists():
+    # Regenerate when anything is missing OR the passwd blob is corrupt
+    # (self-heals installs written by the old decode-then-printf code).
+    if not password or not _passwd_file_valid():
         password = _generate_password()
-        # vncpasswd -f reads the plaintext on stdin and emits the obfuscated blob
-        code, out = await _run(["vncpasswd", "-f"], timeout=10.0, input_text=f"{password}\n")
-        if code != 0 or not out:
-            raise RuntimeError("Failed to generate VNC password (is tigervnc installed?)")
-        # Write both files with tight permissions via a root shell
-        await _run([
+        # One root shell, binary goes pipe → file, no Python in between.
+        code, out = await _run([
             "sudo", "sh", "-c",
-            f"umask 077; printf '%s' {_shq(out)} > {PASSWD_FILE} && "
+            f"umask 077; "
+            f"printf '%s\\n' {_shq(password)} | vncpasswd -f > {PASSWD_FILE} && "
             f"printf '%s' {_shq(password)} > {PLAIN_FILE} && "
             f"chmod 600 {PASSWD_FILE} {PLAIN_FILE}",
-        ], timeout=10.0)
+        ], timeout=15.0)
+        if code != 0:
+            raise RuntimeError(
+                f"Failed to generate VNC password (is tigervnc installed?): {out[-200:]}"
+            )
+        # chown before validating so the size check can't race ownership
+        await _run(["sudo", "chown", "sudo-pi:sudo-pi", str(PASSWD_FILE), str(PLAIN_FILE)], timeout=5.0)
+        if not _passwd_file_valid():
+            raise RuntimeError(
+                "vncpasswd produced an invalid password file "
+                f"(expected 8 bytes at {PASSWD_FILE})"
+            )
+        logger.info("VNC password (re)generated — passwd blob is valid")
 
     # Always (re)write xstartup so DE detection stays current
     await _run([
