@@ -196,49 +196,82 @@ def _shq(value: str) -> str:
 # ─── Start / stop ────────────────────────────────────────────────────────────
 
 
+async def _port_pids(port: int) -> list[str]:
+    """Return PIDs listening on / connected to localhost:<port>, best-effort.
+
+    Tries `ss -ltnp` (parses the pid=... field), which is present on every
+    modern Pi. Never raises — an empty list just means "nothing found".
+    """
+    pids: set[str] = set()
+    code, out = await _run(["sudo", "ss", "-tanp"], timeout=6.0)
+    if code == 0 and out:
+        for line in out.splitlines():
+            if f":{port}" not in line:
+                continue
+            for m in re.finditer(r"pid=(\d+)", line):
+                pids.add(m.group(1))
+    return sorted(pids)
+
+
+async def _free_port(port: int) -> None:
+    """Kill whatever holds <port>, by process identity — name-independent.
+
+    This is the bulletproof part: the auth blacklist lives inside the Xvnc
+    process, so the port MUST be released by killing that exact process,
+    regardless of what it's called (Xtigervnc / Xvnc / a wrapper).
+    """
+    # fuser is the simplest reliable killer when psmisc is present
+    await _run(["sudo", "fuser", "-k", f"{port}/tcp"], timeout=8.0)
+    # Fallback: kill by PID discovered via ss (covers boxes without fuser)
+    for pid in await _port_pids(port):
+        await _run(["sudo", "kill", "-9", pid], timeout=5.0)
+
+
 async def _kill_everything() -> None:
     """Aggressively tear down VNC + websockify and clear stale X locks.
 
     The Xvnc auth blacklist ("too many tries") lives in the Xvnc process's
     memory — the ONLY reliable reset is making sure the old process is
-    actually dead. `vncserver -kill` alone leaves zombies behind when the
-    pid file is stale, so we follow up with pkill and lock-file cleanup.
+    actually dead. We attack it three ways so it can't survive a restart:
+      1. the polite `vncserver -kill` (cleans the wrapper's own bookkeeping)
+      2. pkill by every known name pattern
+      3. kill by whoever is holding ports 5901 / 6080 (name-independent)
+    then clear the X lock/socket/pid files that would block the next start.
     """
-    # 1. Polite kill via the wrapper (cleans its own pid/log bookkeeping)
+    # 1. Polite kill via the wrapper
     await _run(
         ["sudo", "-u", "sudo-pi", "env", "HOME=/opt/sudo-pi",
          "vncserver", "-kill", f":{DISPLAY_NUM}"],
         timeout=15.0,
     )
 
-    # 2. Force-kill anything still holding the display or the WS port.
-    #    Match every Xvnc flavor (Xtigervnc, Xvnc, vncserver wrapper).
-    for pattern in (
+    # 2. Name-based kills (TERM then, after a beat, KILL)
+    name_patterns = (
         f"Xtigervnc.*:{DISPLAY_NUM}",
         f"Xvnc.*:{DISPLAY_NUM}",
         f"vncserver.*:{DISPLAY_NUM}",
+        f"[Xx]vnc.*-rfbport {VNC_PORT}",
         f"websockify.*{WEBSOCKIFY_PORT}",
-    ):
-        await _run(["sudo", "pkill", "-f", pattern], timeout=10.0)
-
-    # Give SIGTERM a moment, then SIGKILL survivors
+    )
+    for pattern in name_patterns:
+        await _run(["sudo", "pkill", "-f", pattern], timeout=8.0)
     await asyncio.sleep(0.5)
-    for pattern in (
-        f"Xtigervnc.*:{DISPLAY_NUM}",
-        f"Xvnc.*:{DISPLAY_NUM}",
-        f"websockify.*{WEBSOCKIFY_PORT}",
-    ):
-        await _run(["sudo", "pkill", "-9", "-f", pattern], timeout=10.0)
+    for pattern in name_patterns:
+        await _run(["sudo", "pkill", "-9", "-f", pattern], timeout=8.0)
 
-    # 3. Remove stale X locks + pid files that block the next startup
+    # 3. Port-based kills — the reliable backstop when names don't match
+    await _free_port(VNC_PORT)
+    await _free_port(WEBSOCKIFY_PORT)
+
+    # 4. Remove stale X locks + pid files that block the next startup
     await _run([
         "sudo", "sh", "-c",
         f"rm -f /tmp/.X{DISPLAY_NUM}-lock /tmp/.X11-unix/X{DISPLAY_NUM} "
-        f"{WEBSOCKIFY_PID} {VNC_DIR}/*.pid 2>/dev/null; true",
+        f"{WEBSOCKIFY_PID} {VNC_DIR}/*.pid {VNC_DIR}/*.log 2>/dev/null; true",
     ], timeout=10.0)
 
 
-async def _wait_for_port(port: int, attempts: int = 10) -> bool:
+async def _wait_for_port(port: int, attempts: int = 20) -> bool:
     """Poll until something is listening on localhost:<port>."""
     for _ in range(attempts):
         code, out = await _run(["ss", "-ltn"], timeout=5.0)
@@ -248,10 +281,29 @@ async def _wait_for_port(port: int, attempts: int = 10) -> bool:
     return False
 
 
+async def _wait_for_port_free(port: int, attempts: int = 20) -> bool:
+    """Poll until nothing is listening on localhost:<port>.
+
+    Starting Xvnc while the old process still holds 5901 makes the new one
+    fail to bind (or silently reuse the blacklisted session), so we block
+    until the port is genuinely free before (re)starting.
+    """
+    for _ in range(attempts):
+        code, out = await _run(["ss", "-ltn"], timeout=5.0)
+        if code == 0 and f":{port}" not in out:
+            return True
+        # Keep hammering the holder while we wait
+        await _free_port(port)
+        await asyncio.sleep(0.5)
+    return False
+
+
 async def _start_vnc() -> None:
     # Universally-supported arguments only:
     #   bare `-localhost` (no yes/no value — older wrappers choke on it),
     #   no Blacklist* flags (missing from several TigerVNC builds).
+    # A fresh process has an empty auth blacklist, which is the whole point
+    # of the aggressive teardown that runs before this.
     code, out = await _run(
         [
             "sudo", "-u", "sudo-pi",
@@ -275,15 +327,17 @@ async def _start_vnc() -> None:
 
 
 async def _start_websockify() -> None:
-    if await _pgrep(f"websockify.*{WEBSOCKIFY_PORT}"):
-        return
     # Detached background process; bridge WS 6080 → VNC 5901 on loopback only
     await _run([
         "sudo", "sh", "-c",
         f"nohup websockify 127.0.0.1:{WEBSOCKIFY_PORT} 127.0.0.1:{VNC_PORT} "
         f"> /var/log/sudo-pi-websockify.log 2>&1 & echo $! > {WEBSOCKIFY_PID}",
     ], timeout=10.0)
-    await _wait_for_port(WEBSOCKIFY_PORT, attempts=6)
+    if not await _wait_for_port(WEBSOCKIFY_PORT, attempts=12):
+        raise RuntimeError(
+            f"websockify did not start listening on port {WEBSOCKIFY_PORT}. "
+            f"Check /var/log/sudo-pi-websockify.log"
+        )
 
 
 async def start() -> dict:
@@ -296,6 +350,11 @@ async def start() -> dict:
     # blacklisted Xvnc) is exactly what causes "too many tries" loops.
     await _kill_everything()
 
+    # Do NOT start until the ports are actually released, or the new Xvnc
+    # inherits the old (blacklisted) session's socket.
+    await _wait_for_port_free(VNC_PORT)
+    await _wait_for_port_free(WEBSOCKIFY_PORT)
+
     await _ensure_provisioned()
     await _start_vnc()
     await _start_websockify()
@@ -306,6 +365,9 @@ async def start() -> dict:
 
 async def stop() -> dict:
     await _kill_everything()
+    # Confirm the ports are free so the UI reports an honest "stopped"
+    await _wait_for_port_free(VNC_PORT, attempts=8)
+    await _wait_for_port_free(WEBSOCKIFY_PORT, attempts=8)
     logger.info("Remote desktop stopped")
     return await get_status()
 
