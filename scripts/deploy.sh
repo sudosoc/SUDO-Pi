@@ -34,8 +34,12 @@ git -C "${REPO_DIR}" pull --ff-only
 ok "Repo up to date ($(git -C "${REPO_DIR}" rev-parse --short HEAD))"
 
 # ── 2. Build frontend ────────────────────────────────────────────────────────
-info "Building frontend..."
+info "Installing frontend dependencies..."
 cd "${REPO_DIR}/frontend"
+# Sync node_modules with package.json so newly-added deps (e.g. noVNC) are
+# present before the build. Falls back to install if the lockfile drifted.
+npm ci --no-audit --no-fund 2>/dev/null || npm install --no-audit --no-fund
+info "Building frontend..."
 npm run build
 ok "Frontend built → ${REPO_DIR}/frontend/dist"
 

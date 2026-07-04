@@ -41,6 +41,7 @@ from app.api.v1 import (
     device_policies,
     dns,
     automations,
+    remote_desktop,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -83,3 +84,4 @@ api_router.include_router(os_updates.router)
 api_router.include_router(device_policies.router)
 api_router.include_router(dns.router)
 api_router.include_router(automations.router)
+api_router.include_router(remote_desktop.router)

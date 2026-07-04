@@ -6,7 +6,7 @@ import {
   Shield, Terminal, Users, Wifi, Zap, LogOut, MonitorSmartphone,
   Network, Flame, Clock, KeyRound, Activity, Bell, HardDrive,
   Monitor, Server, Gauge, BarChart2, Layers, Store, Archive, Stethoscope,
-  DownloadCloud, ShieldBan, LayoutGrid, Globe, Workflow,
+  DownloadCloud, ShieldBan, LayoutGrid, Globe, Workflow, MonitorPlay,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuthStore } from "@/stores/authStore";
@@ -78,6 +78,7 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Tools",
     items: [
+      { to: "/remote-desktop", icon: MonitorPlay, label: "Remote Desktop", roles: ["admin", "operator"] },
       { to: "/terminal", icon: Terminal,   label: "Terminal",  roles: ["admin", "operator"] },
       { to: "/files",    icon: FolderOpen, label: "Files",     roles: ["admin", "operator"] },
       { to: "/packages", icon: Package,    label: "Packages",  roles: ["admin", "operator"] },
