@@ -196,23 +196,82 @@ def _shq(value: str) -> str:
 # ─── Start / stop ────────────────────────────────────────────────────────────
 
 
+async def _kill_everything() -> None:
+    """Aggressively tear down VNC + websockify and clear stale X locks.
+
+    The Xvnc auth blacklist ("too many tries") lives in the Xvnc process's
+    memory — the ONLY reliable reset is making sure the old process is
+    actually dead. `vncserver -kill` alone leaves zombies behind when the
+    pid file is stale, so we follow up with pkill and lock-file cleanup.
+    """
+    # 1. Polite kill via the wrapper (cleans its own pid/log bookkeeping)
+    await _run(
+        ["sudo", "-u", "sudo-pi", "env", "HOME=/opt/sudo-pi",
+         "vncserver", "-kill", f":{DISPLAY_NUM}"],
+        timeout=15.0,
+    )
+
+    # 2. Force-kill anything still holding the display or the WS port.
+    #    Match every Xvnc flavor (Xtigervnc, Xvnc, vncserver wrapper).
+    for pattern in (
+        f"Xtigervnc.*:{DISPLAY_NUM}",
+        f"Xvnc.*:{DISPLAY_NUM}",
+        f"vncserver.*:{DISPLAY_NUM}",
+        f"websockify.*{WEBSOCKIFY_PORT}",
+    ):
+        await _run(["sudo", "pkill", "-f", pattern], timeout=10.0)
+
+    # Give SIGTERM a moment, then SIGKILL survivors
+    await asyncio.sleep(0.5)
+    for pattern in (
+        f"Xtigervnc.*:{DISPLAY_NUM}",
+        f"Xvnc.*:{DISPLAY_NUM}",
+        f"websockify.*{WEBSOCKIFY_PORT}",
+    ):
+        await _run(["sudo", "pkill", "-9", "-f", pattern], timeout=10.0)
+
+    # 3. Remove stale X locks + pid files that block the next startup
+    await _run([
+        "sudo", "sh", "-c",
+        f"rm -f /tmp/.X{DISPLAY_NUM}-lock /tmp/.X11-unix/X{DISPLAY_NUM} "
+        f"{WEBSOCKIFY_PID} {VNC_DIR}/*.pid 2>/dev/null; true",
+    ], timeout=10.0)
+
+
+async def _wait_for_port(port: int, attempts: int = 10) -> bool:
+    """Poll until something is listening on localhost:<port>."""
+    for _ in range(attempts):
+        code, out = await _run(["ss", "-ltn"], timeout=5.0)
+        if code == 0 and f":{port}" in out:
+            return True
+        await asyncio.sleep(0.5)
+    return False
+
+
 async def _start_vnc() -> None:
-    # Kill any stale session on our display first
-    await _run(["sudo", "-u", "sudo-pi", "vncserver", "-kill", f":{DISPLAY_NUM}"], timeout=15.0)
+    # Universally-supported arguments only:
+    #   bare `-localhost` (no yes/no value — older wrappers choke on it),
+    #   no Blacklist* flags (missing from several TigerVNC builds).
     code, out = await _run(
         [
             "sudo", "-u", "sudo-pi",
-            "env", f"HOME=/opt/sudo-pi",
+            "env", "HOME=/opt/sudo-pi",
             "vncserver", f":{DISPLAY_NUM}",
             "-geometry", GEOMETRY,
             "-depth", DEPTH,
-            "-localhost", "yes",
+            "-localhost",
             "-rfbauth", str(PASSWD_FILE),
         ],
         timeout=30.0,
     )
     if code != 0 and "already" not in out.lower():
         raise RuntimeError(f"Failed to start VNC server: {out[-400:]}")
+
+    if not await _wait_for_port(VNC_PORT):
+        raise RuntimeError(
+            f"VNC server did not start listening on port {VNC_PORT}. "
+            f"Last output: {out[-300:] if out else 'none'}"
+        )
 
 
 async def _start_websockify() -> None:
@@ -224,6 +283,7 @@ async def _start_websockify() -> None:
         f"nohup websockify 127.0.0.1:{WEBSOCKIFY_PORT} 127.0.0.1:{VNC_PORT} "
         f"> /var/log/sudo-pi-websockify.log 2>&1 & echo $! > {WEBSOCKIFY_PID}",
     ], timeout=10.0)
+    await _wait_for_port(WEBSOCKIFY_PORT, attempts=6)
 
 
 async def start() -> dict:
@@ -232,19 +292,20 @@ async def start() -> dict:
     if not _which("websockify"):
         raise RuntimeError("websockify is not installed — install remote desktop first")
 
+    # Always start from a clean slate — a half-dead previous session (or a
+    # blacklisted Xvnc) is exactly what causes "too many tries" loops.
+    await _kill_everything()
+
     await _ensure_provisioned()
     await _start_vnc()
-    await asyncio.sleep(1.0)
     await _start_websockify()
-    await asyncio.sleep(0.5)
 
     logger.info("Remote desktop started on display :{} (ws :{})", DISPLAY_NUM, WEBSOCKIFY_PORT)
     return await get_status()
 
 
 async def stop() -> dict:
-    await _run(["sudo", "-u", "sudo-pi", "vncserver", "-kill", f":{DISPLAY_NUM}"], timeout=15.0)
-    await _run(["sudo", "pkill", "-f", f"websockify.*{WEBSOCKIFY_PORT}"], timeout=10.0)
+    await _kill_everything()
     logger.info("Remote desktop stopped")
     return await get_status()
 
