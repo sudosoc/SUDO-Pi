@@ -363,3 +363,91 @@ async def reboot_system() -> None:
 
 async def shutdown_system() -> None:
     await asyncio.create_subprocess_exec("sudo", "shutdown", "now")
+
+
+# ─── Software update ──────────────────────────────────────────────────────────
+#
+# The updater restarts the backend mid-run, which would kill any process the
+# backend spawned directly. We therefore launch update.sh as a detached,
+# transient systemd unit (systemd-run) so it survives the restart. Progress is
+# tracked through the status file + log that update.sh maintains.
+
+_UPDATE_STATUS_FILE = Path("/run/sudo-pi-update.status")
+_UPDATE_LOG_FILE = Path("/var/log/sudo-pi/update.log")
+
+
+def _find_repo_dir() -> Path | None:
+    """Locate the git checkout that holds update.sh (search common locations)."""
+    candidates = [
+        Path("/SUDO-Pi"),
+        Path("/opt/SUDO-Pi"),
+        Path("/root/SUDO-Pi"),
+        Path(__file__).resolve().parents[3],  # …/backend/app/services → repo
+    ]
+    for path in candidates:
+        try:
+            if (path / "update.sh").is_file():
+                return path
+        except Exception:
+            continue
+    return None
+
+
+async def start_software_update() -> dict:
+    """Launch update.sh detached so it outlives the backend restart it triggers."""
+    current = _UPDATE_STATUS_FILE.read_text().strip() if _UPDATE_STATUS_FILE.exists() else "idle"
+    if current == "running":
+        raise RuntimeError("An update is already in progress")
+
+    repo = _find_repo_dir()
+    if repo is None:
+        raise RuntimeError("Could not locate the SUDO-Pi checkout (update.sh not found)")
+
+    # Mark running immediately so rapid double-clicks are rejected before the
+    # detached unit has had a chance to write its own status.
+    try:
+        _UPDATE_STATUS_FILE.write_text("running")
+    except Exception:
+        pass
+
+    script = str(repo / "update.sh")
+    proc = await asyncio.create_subprocess_exec(
+        "sudo", "systemd-run", "--unit=sudo-pi-update", "--collect",
+        "--setenv=DEBIAN_FRONTEND=noninteractive",
+        "/usr/bin/env", "bash", script,
+        stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT,
+    )
+    out, _ = await proc.communicate()
+    if proc.returncode != 0:
+        # systemd-run itself failed to launch — fall back to nohup so the
+        # feature still works on boxes without a functioning systemd-run.
+        try:
+            _UPDATE_STATUS_FILE.write_text("running")
+        except Exception:
+            pass
+        await asyncio.create_subprocess_exec(
+            "sudo", "sh", "-c",
+            f"nohup bash {script} >/dev/null 2>&1 &",
+        )
+    logger.info("Software update launched from {}", repo)
+    return {"detail": "Update started", "repo": str(repo)}
+
+
+async def get_software_update_status() -> dict:
+    status = "idle"
+    if _UPDATE_STATUS_FILE.exists():
+        try:
+            status = _UPDATE_STATUS_FILE.read_text().strip() or "idle"
+        except Exception:
+            status = "idle"
+
+    log_tail = ""
+    if _UPDATE_LOG_FILE.exists():
+        try:
+            # Strip ANSI colour codes the script writes for the console
+            raw = _UPDATE_LOG_FILE.read_text(errors="replace")
+            log_tail = re.sub(r"\x1b\[[0-9;]*m", "", raw)[-6000:]
+        except Exception:
+            log_tail = ""
+
+    return {"status": status, "log": log_tail}

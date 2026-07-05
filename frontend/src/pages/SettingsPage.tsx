@@ -1,14 +1,140 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { apiClient } from "@/api/client";
+import { apiClient, getApiError } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
-import { AlertTriangle, RefreshCw, Save, Server, Sun, Moon, Monitor, Palette, Rows3, Rows4 } from "lucide-react";
+import { useConfirm } from "@/components/ui/confirm-dialog";
+import {
+  AlertTriangle, RefreshCw, Save, Server, Sun, Moon, Monitor, Palette,
+  Rows3, Rows4, DownloadCloud, CheckCircle2, XCircle, Loader2, Terminal as TerminalIcon,
+} from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { cn } from "@/lib/utils";
+
+// ─── Software update ────────────────────────────────────────────────────────
+
+interface UpdateStatus {
+  status: "idle" | "running" | "success" | "failed";
+  log: string;
+}
+
+function SoftwareUpdateCard() {
+  const { confirm, dialog } = useConfirm();
+  const [polling, setPolling] = useState(false);
+  const logRef = useRef<HTMLPreElement>(null);
+
+  const { data } = useQuery<UpdateStatus>({
+    queryKey: ["software-update-status"],
+    queryFn: async () => {
+      const res = await apiClient.get("/system/update/status");
+      return res.data as UpdateStatus;
+    },
+    // Poll quickly while an update is running, otherwise stay quiet
+    refetchInterval: polling ? 2000 : false,
+  });
+
+  // Start/stop polling based on the reported status
+  useEffect(() => {
+    if (data?.status === "running") setPolling(true);
+    else if (data?.status === "success" || data?.status === "failed") {
+      // one more tick, then stop
+      const t = setTimeout(() => setPolling(false), 2500);
+      return () => clearTimeout(t);
+    }
+  }, [data?.status]);
+
+  // Auto-scroll the log
+  useEffect(() => {
+    if (logRef.current) logRef.current.scrollTop = logRef.current.scrollHeight;
+  }, [data?.log]);
+
+  const startMut = useMutation({
+    mutationFn: () => apiClient.post("/system/update"),
+    onSuccess: () => {
+      setPolling(true);
+      toast({
+        title: "Update started",
+        description: "Pulling the latest version and rebuilding…",
+        variant: "success",
+      } as { title: string; description: string; variant: "success" });
+    },
+    onError: (err) =>
+      toast({
+        title: "Could not start update",
+        description: getApiError(err),
+        variant: "destructive",
+      } as { title: string; description: string; variant: "destructive" }),
+  });
+
+  const requestUpdate = async () => {
+    const ok = await confirm({
+      title: "Update SUDO-Pi to the latest version?",
+      description:
+        "Pulls the latest code, rebuilds the dashboard, and restarts services. The dashboard may be briefly unavailable — this page keeps following progress and reconnects automatically.",
+      confirmLabel: "Update now",
+      severity: "danger",
+    });
+    if (ok) startMut.mutate();
+  };
+
+  const status = data?.status ?? "idle";
+  const running = status === "running";
+
+  return (
+    <Card>
+      {dialog}
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5">
+          <DownloadCloud className="w-3.5 h-3.5" /> Software Update
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <div className="flex-1 min-w-0">
+            <p className="text-sm">
+              {running ? "Update in progress…"
+                : status === "success" ? "Up to date"
+                : status === "failed" ? "Last update failed"
+                : "Pull the latest version from GitHub"}
+            </p>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Rebuilds the app, installs new dependencies, migrates the database, and restarts services.
+            </p>
+          </div>
+          {status === "success" && <Badge variant="success" className="gap-1"><CheckCircle2 className="w-3 h-3" /> Success</Badge>}
+          {status === "failed" && <Badge variant="destructive" className="gap-1"><XCircle className="w-3 h-3" /> Failed</Badge>}
+          {running && <Badge variant="info" className="gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Running</Badge>}
+          <Button
+            className="gap-1.5"
+            loading={startMut.isPending || running}
+            disabled={running}
+            onClick={requestUpdate}
+          >
+            <DownloadCloud className="w-4 h-4" />
+            {running ? "Updating…" : "Check for updates"}
+          </Button>
+        </div>
+
+        {(running || data?.log) && (
+          <div>
+            <p className="text-[11px] text-muted-foreground mb-1.5 flex items-center gap-1.5">
+              <TerminalIcon className="w-3 h-3" /> Update log
+            </p>
+            <pre
+              ref={logRef}
+              className="max-h-56 overflow-y-auto rounded-lg bg-background border border-border/70 p-3 text-[11px] font-mono text-muted-foreground whitespace-pre-wrap"
+            >
+              {data?.log?.trim() || "Waiting for output…"}
+            </pre>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
 
 const themes = [
   { value: "dark" as const,   label: "Dark",   icon: Moon },
@@ -170,6 +296,9 @@ export default function SettingsPage() {
           </div>
         </CardContent>
       </Card>
+
+      {/* ── Software Update ────────────────────────────────────────────────── */}
+      <SoftwareUpdateCard />
 
       {/* ── System ─────────────────────────────────────────────────────────── */}
       <Card>

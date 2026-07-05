@@ -150,6 +150,22 @@ async def shutdown(current_user: AdminUser, db: DBSession) -> dict:
     return {"detail": "System shutting down"}
 
 
+@router.post("/update", dependencies=[CsrfVerified])
+async def software_update(current_user: AdminUser, db: DBSession) -> dict:
+    audit = AuditService(db)
+    try:
+        result = await system_service.start_software_update()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+    await audit.log("system.update", user=current_user, status_code=200)
+    return result
+
+
+@router.get("/update/status")
+async def software_update_status(_: AdminUser) -> dict:
+    return await system_service.get_software_update_status()
+
+
 @router.websocket("/ws")
 async def system_ws(websocket: WebSocket) -> None:
     await handle_system_websocket(websocket)
