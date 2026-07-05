@@ -108,5 +108,5 @@ All notable changes to SUDO-Pi are documented here.
 - IP forwarding + iptables NAT for AP client internet access
 - systemd service units with security hardening (ProtectSystem, NoNewPrivileges, etc.)
 - Fail2Ban configuration for login brute-force protection
-- Automated idempotent installer (`scripts/setup.sh`) with rollback on failure
+- Automated idempotent installer (`install.sh`) with rollback on failure
 - Self-signed TLS certificate generation (4096-bit RSA, 10-year)

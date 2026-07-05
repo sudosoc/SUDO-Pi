@@ -18,7 +18,7 @@ git clone https://github.com/youruser/sudo-pi.git
 cd sudo-pi
 
 # Run the installer as root
-sudo bash scripts/setup.sh
+sudo bash install.sh
 ```
 
 The script is idempotent — running it again will update existing installations without duplicating configuration.
@@ -61,7 +61,7 @@ The script is idempotent — running it again will update existing installations
 
 ## Manual Installation (Advanced)
 
-If you prefer to install each component manually, refer to the steps in `scripts/setup.sh`. Every function in the script is a self-contained, independently runnable step.
+If you prefer to install each component manually, refer to the steps in `install.sh`. Every function in the script is a self-contained, independently runnable step.
 
 ## Upgrading
 
@@ -70,7 +70,7 @@ cd sudo-pi
 git pull
 
 # Re-run the installer — it skips steps that are already complete
-sudo bash scripts/setup.sh
+sudo bash install.sh
 ```
 
 ## Uninstalling

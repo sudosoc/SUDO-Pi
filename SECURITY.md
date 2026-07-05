@@ -86,7 +86,7 @@ Permissions-Policy: geolocation=(), microphone=(), camera=()
 
 ## Vulnerability Disclosure
 
-If you discover a security vulnerability in SUDO-Pi, please report it by opening a GitHub issue marked **[SECURITY]**. Do not publicly disclose vulnerability details until a fix has been released.
+If you discover a security vulnerability in SUDO-Pi, please report it **privately** to **ceo@sudosoc.com** rather than opening a public issue. Do not publicly disclose vulnerability details until a fix has been released.
 
 ## Known Limitations
 

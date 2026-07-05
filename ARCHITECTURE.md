@@ -104,13 +104,13 @@ Pi-Center/
 │   ├── systemd/
 │   └── networkmanager/
 ├── scripts/
-│   └── setup.sh
+│   └── internet-sharing.sh
 └── docs/
 ```
 
 ## Security Architecture
 
-1. **TLS**: Self-signed cert for LAN use (setup.sh generates via openssl); Let's Encrypt optional if domain exists.
+1. **TLS**: Self-signed cert for LAN use (install.sh generates via openssl); Let's Encrypt optional if domain exists.
 2. **JWT**: RS256 algorithm with 2048-bit RSA key pair stored outside webroot.
 3. **RBAC**: Roles — `admin` (full access), `operator` (read + limited write), `viewer` (read-only).
 4. **Rate Limiting**: slowapi — 5 login attempts/minute per IP, 100 requests/minute general.

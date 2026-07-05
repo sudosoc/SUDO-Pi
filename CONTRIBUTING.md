@@ -74,7 +74,7 @@ frontend/
 └── package.json
 
 configs/                 # Service configuration templates
-scripts/                 # setup.sh installer
+scripts/                 # internet-sharing helper
 ```
 
 ## Code Style
