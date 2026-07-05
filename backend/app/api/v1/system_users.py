@@ -7,7 +7,6 @@ from pydantic import BaseModel, Field
 
 from app.core.dependencies import ActiveUser, AdminUser, CsrfVerified, DBSession
 from app.core.security import verify_password
-from app.core.system_auth import verify_system_root_password
 from app.services import system_user_service
 from app.services.audit_service import AuditService
 
@@ -18,21 +17,23 @@ router = APIRouter(prefix="/system-users", tags=["System Users"])
 
 
 class StepUp(BaseModel):
-    """Every sensitive Pi-user action must carry both proofs of identity."""
+    """Sensitive Pi-user actions re-confirm the admin's dashboard password.
+
+    `system_password` is accepted for backward compatibility with older
+    clients but is no longer required or verified.
+    """
     dashboard_password: str = Field(..., min_length=1, max_length=128)
-    system_password: str = Field(..., min_length=1, max_length=128)
+    system_password: Optional[str] = Field(None, max_length=128)
 
 
 async def _verify_step_up(step: StepUp, current_user) -> None:
-    """Confirm the caller is the dashboard admin AND knows the Pi root password.
+    """Re-confirm the caller's dashboard admin password (re-auth).
 
     AdminUser already guarantees the dashboard role; here we re-check the
-    dashboard password (re-auth) and the Linux root password (step-up).
+    dashboard password so a walk-up session can't perform OS-level changes.
     """
     if not verify_password(step.dashboard_password, current_user.hashed_password):
         raise HTTPException(status.HTTP_403_FORBIDDEN, "Dashboard password is incorrect")
-    if not await verify_system_root_password(step.system_password):
-        raise HTTPException(status.HTTP_403_FORBIDDEN, "Pi root password is incorrect")
 
 
 # ─── Request bodies ───────────────────────────────────────────────────────────

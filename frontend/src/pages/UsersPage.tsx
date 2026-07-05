@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
-  Plus, Trash2, KeyRound, ShieldCheck, SlidersHorizontal, Check,
+  Plus, Trash2, KeyRound, SlidersHorizontal, Check,
 } from "lucide-react";
 import { apiClient, getApiError } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -29,25 +29,23 @@ function SelfPasswordCard() {
   const [current, setCurrent] = useState("");
   const [next, setNext] = useState("");
   const [confirmPw, setConfirmPw] = useState("");
-  const [systemPw, setSystemPw] = useState("");
 
   const mut = useMutation({
     mutationFn: () =>
       apiClient.put("/users/me/password", {
         current_password: current,
         new_password: next,
-        system_password: systemPw,
       }),
     onSuccess: () => {
       toast({ title: "Password changed", variant: "success" } as { title: string; variant: "success" });
-      setCurrent(""); setNext(""); setConfirmPw(""); setSystemPw("");
+      setCurrent(""); setNext(""); setConfirmPw("");
     },
     onError: (err) =>
       toast({ title: "Could not change password", description: getApiError(err), variant: "destructive" } as { title: string; description: string; variant: "destructive" }),
   });
 
   const mismatch = next.length > 0 && confirmPw.length > 0 && next !== confirmPw;
-  const canSubmit = current && next.length >= 8 && next === confirmPw && systemPw;
+  const canSubmit = current && next.length >= 8 && next === confirmPw;
 
   return (
     <Card>
@@ -62,12 +60,6 @@ function SelfPasswordCard() {
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">Current dashboard password</label>
             <Input type="password" value={current} onChange={(e) => setCurrent(e.target.value)} autoComplete="current-password" />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground mb-1 block flex items-center gap-1.5">
-              <ShieldCheck className="w-3 h-3" /> Pi root password
-            </label>
-            <Input type="password" value={systemPw} onChange={(e) => setSystemPw(e.target.value)} autoComplete="off" placeholder="Verifies you're root on the Pi" />
           </div>
           <div>
             <label className="text-xs text-muted-foreground mb-1 block">New password</label>

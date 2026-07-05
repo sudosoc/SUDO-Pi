@@ -1,18 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { ReactNode } from "react";
-import { ShieldCheck, KeyRound, Terminal } from "lucide-react";
+import { ShieldCheck, KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 // ---------------------------------------------------------------------------
-// StepUpDialog — dual-factor confirmation for OS-level actions.
-// Collects the caller's dashboard password AND the Pi's root password before
-// a sensitive operation (managing Linux users, changing your own password).
+// StepUpDialog — re-authentication for sensitive OS-level actions.
+// Re-confirms the caller's dashboard password before an operation like
+// managing Linux users or changing your own password. `system_password`
+// remains in the result shape (optional) purely for API back-compat.
 // ---------------------------------------------------------------------------
 
 export interface StepUpResult {
   dashboard_password: string;
-  system_password: string;
+  system_password?: string;
 }
 
 export interface StepUpOptions {
@@ -32,19 +33,15 @@ function StepUpDialog({
   open,
   loading,
   title = "Confirm your identity",
-  description = "This action affects the Pi's operating system. Enter your dashboard password and the Pi's root password to continue.",
+  description = "This action affects the Pi's operating system. Re-enter your dashboard password to continue.",
   confirmLabel = "Verify and continue",
   onCancel,
   onConfirm,
 }: StepUpDialogProps) {
   const [dashboardPw, setDashboardPw] = useState("");
-  const [systemPw, setSystemPw] = useState("");
 
   useEffect(() => {
-    if (open) {
-      setDashboardPw("");
-      setSystemPw("");
-    }
+    if (open) setDashboardPw("");
   }, [open]);
 
   useEffect(() => {
@@ -58,10 +55,10 @@ function StepUpDialog({
 
   if (!open) return null;
 
-  const disabled = !dashboardPw || !systemPw;
+  const disabled = !dashboardPw;
   const submit = () => {
     if (!disabled && !loading) {
-      onConfirm({ dashboard_password: dashboardPw, system_password: systemPw });
+      onConfirm({ dashboard_password: dashboardPw });
     }
   };
 
@@ -92,26 +89,14 @@ function StepUpDialog({
               autoFocus
               value={dashboardPw}
               onChange={(e) => setDashboardPw(e.target.value)}
-              placeholder="Your dashboard login password"
-              autoComplete="current-password"
-            />
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground flex items-center gap-1.5 mb-1">
-              <Terminal className="w-3.5 h-3.5" /> Pi root password
-            </label>
-            <Input
-              type="password"
-              value={systemPw}
-              onChange={(e) => setSystemPw(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
                   submit();
                 }
               }}
-              placeholder="The root account password on the Pi"
-              autoComplete="off"
+              placeholder="Your dashboard login password"
+              autoComplete="current-password"
             />
           </div>
         </div>
