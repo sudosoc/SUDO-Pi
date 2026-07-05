@@ -53,19 +53,70 @@ async def _shadow_hash(username: str) -> str | None:
     return parts[1] or None
 
 
-def _crypt_matches(password: str, stored: str) -> bool:
-    """True only when stdlib crypt can positively confirm the match.
+import ctypes
+import ctypes.util
+import threading
 
-    Any failure (module missing, unsupported scheme, mismatch) returns False,
-    which just means "fall through to the authoritative PAM check" — never a
-    false positive.
+# crypt(3) from the system C library is NOT thread-safe (static return buffer),
+# and we call it from executor threads — serialise access.
+_crypt_lock = threading.Lock()
+_libcrypt: ctypes.CDLL | None = None
+_libcrypt_loaded = False
+
+
+def _load_libcrypt() -> ctypes.CDLL | None:
+    """Load the system libcrypt once. On Debian/Kali this is libxcrypt, which
+    understands yescrypt ($y$), SHA-512 ($6$), and every other stored scheme —
+    the same library PAM's pam_unix uses, so it's authoritative."""
+    global _libcrypt, _libcrypt_loaded
+    if _libcrypt_loaded:
+        return _libcrypt
+    _libcrypt_loaded = True
+    for name in ("crypt", None):
+        try:
+            libname = ctypes.util.find_library(name) if name else "libcrypt.so.1"
+            if not libname:
+                continue
+            lib = ctypes.CDLL(libname, use_errno=True)
+            lib.crypt.restype = ctypes.c_char_p
+            lib.crypt.argtypes = [ctypes.c_char_p, ctypes.c_char_p]
+            _libcrypt = lib
+            return _libcrypt
+        except Exception:
+            continue
+    logger.warning("system libcrypt not loadable — falling back to su for password checks")
+    return None
+
+
+def _crypt_matches(password: str, stored: str) -> bool:
+    """True only when the system libcrypt positively confirms the match.
+
+    Calls crypt(3) with the stored hash as the setting: for yescrypt/SHA-512
+    the returned string equals the stored hash exactly on success. Any failure
+    (lib missing, unsupported scheme, mismatch, NULL return) yields False, which
+    just means "fall through to the su check" — never a false positive.
+
+    Tries the system libcrypt via ctypes first (works on Python 3.13 where the
+    stdlib crypt module was removed), then the stdlib module as a backup.
     """
-    try:
-        import crypt  # noqa: PLC0415 — optional, removed in Python 3.13
-    except Exception:
+    if not stored:
         return False
+
+    lib = _load_libcrypt()
+    if lib is not None:
+        try:
+            with _crypt_lock:
+                res = lib.crypt(password.encode("utf-8", "surrogateescape"),
+                                stored.encode("utf-8", "surrogateescape"))
+            if res:
+                return res.decode("utf-8", "replace") == stored
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("libcrypt crypt() failed: {}", exc)
+
+    # Backup: stdlib crypt (present on Python < 3.13, may lack yescrypt)
     try:
-        return bool(stored) and crypt.crypt(password, stored) == stored
+        import crypt as _pycrypt  # noqa: PLC0415
+        return _pycrypt.crypt(password, stored) == stored
     except Exception:
         return False
 
@@ -144,17 +195,33 @@ async def verify_system_password(username: str, password: str) -> bool:
     if not password:
         return False
 
-    # Fast positive short-circuit when libcrypt understands the stored scheme.
-    stored = await _shadow_hash(username)
-    if stored and not stored.startswith("!") and stored not in ("*", ""):
-        if _crypt_matches(password, stored):
-            return True
-    elif stored is not None and (stored.startswith("!") or stored in ("*", "")):
-        # Locked or password-less account — nothing to verify against.
-        return False
-
-    # Authoritative PAM check (handles yescrypt and everything else).
     loop = asyncio.get_running_loop()
+
+    # Authoritative check: hash the candidate with the system libcrypt and
+    # compare to /etc/shadow. This handles yescrypt natively and is the whole
+    # fix — the old su/PTY path failed on Kali's yescrypt root hash.
+    stored = await _shadow_hash(username)
+    if stored is not None:
+        if stored.startswith("!") or stored in ("*", ""):
+            # Locked or password-less account — nothing to authenticate against.
+            return False
+        try:
+            matched = await asyncio.wait_for(
+                loop.run_in_executor(None, _crypt_matches, password, stored),
+                timeout=8.0,
+            )
+            if matched:
+                return True
+            # A readable hash that didn't match means the password is wrong —
+            # but only trust that verdict if libcrypt actually handled the
+            # scheme. If libcrypt is unavailable we can't be sure, so we still
+            # fall through to su below.
+            if _load_libcrypt() is not None:
+                return False
+        except asyncio.TimeoutError:
+            logger.warning("libcrypt password verification timed out for {}", username)
+
+    # Fallback: PAM via su (covers exotic setups where we can't read shadow).
     try:
         return await asyncio.wait_for(
             loop.run_in_executor(None, _su_verify_blocking, username, password),
