@@ -1,13 +1,42 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, status
+from pydantic import BaseModel, Field
 
 from app.core.dependencies import ActiveUser, AdminUser, CsrfVerified, DBSession
+from app.core.security import hash_password, verify_password
+from app.core.system_auth import verify_system_root_password
 from app.schemas.user import UserCreate, UserListResponse, UserResponse, UserUpdate
 from app.services.audit_service import AuditService
 from app.services.user_service import UserService
 
 router = APIRouter(prefix="/users", tags=["Users"])
+
+
+class SelfPasswordChange(BaseModel):
+    """Changing your own dashboard password needs both proofs of identity."""
+    current_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
+    system_password: str = Field(..., min_length=1, max_length=128)
+
+
+@router.put("/me/password", dependencies=[CsrfVerified])
+async def change_my_password(
+    body: SelfPasswordChange,
+    current_user: ActiveUser,
+    db: DBSession,
+) -> dict:
+    # 1. Prove you know your current dashboard password
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Current dashboard password is incorrect")
+    # 2. Prove you know the Pi root password (step-up)
+    if not await verify_system_root_password(body.system_password):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Pi root password is incorrect")
+
+    from app.repositories.user_repository import UserRepository
+    await UserRepository(db).update(current_user, hashed_password=hash_password(body.new_password))
+    await AuditService(db).log("user.self_password", user=current_user, status_code=200)
+    return {"detail": "Password changed"}
 
 
 @router.get("", response_model=UserListResponse)

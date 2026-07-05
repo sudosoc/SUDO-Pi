@@ -6,9 +6,10 @@ import {
   Shield, Terminal, Users, Wifi, Zap, LogOut, MonitorSmartphone,
   Network, Flame, Clock, KeyRound, Activity, Bell, HardDrive,
   Monitor, Server, Gauge, BarChart2, Layers, Store, Archive, Stethoscope,
-  DownloadCloud, ShieldBan, LayoutGrid, Globe, Workflow, MonitorPlay,
+  DownloadCloud, ShieldBan, LayoutGrid, Globe, Workflow, MonitorPlay, UserCog,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { canAccessPage } from "@/lib/pages";
 import { useAuthStore } from "@/stores/authStore";
 import { authApi } from "@/api/auth";
 import { Button } from "@/components/ui/button";
@@ -89,7 +90,8 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Admin",
     items: [
-      { to: "/users",    icon: Users,    label: "Users",    roles: ["admin"] },
+      { to: "/users",        icon: Users,      label: "Dashboard Users", roles: ["admin"] },
+      { to: "/system-users", icon: UserCog,    label: "Pi Users",        roles: ["admin"] },
       { to: "/security", icon: Shield,   label: "Security", roles: ["admin"] },
       { to: "/backup",   icon: Archive,       label: "Backup",   roles: ["admin"] },
       { to: "/updates",  icon: DownloadCloud, label: "Updates",  roles: ["admin"] },
@@ -120,7 +122,10 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
     .map((group) => ({
       ...group,
       items: group.items.filter(
-        (item) => !item.roles || (user?.role && item.roles.includes(user.role))
+        (item) =>
+          (!item.roles || (user?.role && item.roles.includes(user.role))) &&
+          // Per-user page restrictions (null = full access; "/" always shown)
+          canAccessPage(item.to, user?.allowed_pages),
       ),
     }))
     .filter((group) => group.items.length > 0);

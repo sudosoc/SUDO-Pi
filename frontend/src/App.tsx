@@ -37,6 +37,7 @@ const DiagnosticsPage     = lazy(() => import("@/pages/DiagnosticsPage"));
 const UpdatesPage         = lazy(() => import("@/pages/UpdatesPage"));
 const DeviceControlPage   = lazy(() => import("@/pages/DeviceControlPage"));
 const RemoteDesktopPage   = lazy(() => import("@/pages/RemoteDesktopPage"));
+const SystemUsersPage     = lazy(() => import("@/pages/SystemUsersPage"));
 const ServicesPage        = lazy(() => import("@/pages/ServicesPage"));
 const DnsPage             = lazy(() => import("@/pages/DnsPage"));
 const AutomationsPage     = lazy(() => import("@/pages/AutomationsPage"));
@@ -100,8 +101,9 @@ export default function App() {
           <Route path="/dns"            element={<DnsPage />} />
           <Route path="/automations"    element={<AutomationsPage />} />
             <Route element={<AdminGuard />}>
-              <Route path="/users"    element={<UsersPage />} />
-              <Route path="/security" element={<SecurityPage />} />
+              <Route path="/users"        element={<UsersPage />} />
+              <Route path="/system-users" element={<SystemUsersPage />} />
+              <Route path="/security"     element={<SecurityPage />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>

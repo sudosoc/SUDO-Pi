@@ -79,3 +79,21 @@ async def create_tables() -> None:
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_apply_lightweight_migrations)
+
+
+def _apply_lightweight_migrations(conn) -> None:
+    """Add columns that create_all() can't add to pre-existing tables (SQLite).
+
+    Idempotent: checks PRAGMA table_info before each ALTER, so it's safe to
+    run on every startup — new installs get the column from create_all, older
+    databases get it added here.
+    """
+    from sqlalchemy import text
+
+    def _columns(table: str) -> set[str]:
+        rows = conn.execute(text(f"PRAGMA table_info({table})")).fetchall()
+        return {r[1] for r in rows}
+
+    if "allowed_pages" not in _columns("users"):
+        conn.execute(text("ALTER TABLE users ADD COLUMN allowed_pages TEXT"))

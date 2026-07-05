@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 
 class LoginRequest(BaseModel):
@@ -21,8 +21,23 @@ class UserInfoResponse(BaseModel):
     full_name: str | None
     role: str
     is_active: bool
+    allowed_pages: list[str] | None = None
 
     model_config = {"from_attributes": True}
+
+    @field_validator("allowed_pages", mode="before")
+    @classmethod
+    def _pages(cls, v):
+        import json
+        if v is None or isinstance(v, list):
+            return v
+        if isinstance(v, str):
+            try:
+                parsed = json.loads(v)
+                return parsed if isinstance(parsed, list) else None
+            except Exception:
+                return None
+        return None
 
 
 class AuthResponse(BaseModel):

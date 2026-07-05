@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.security import hash_password
@@ -25,6 +27,7 @@ class UserService:
             full_name=data.full_name,
             role=data.role,
             is_active=True,
+            allowed_pages=json.dumps(data.allowed_pages) if data.allowed_pages is not None else None,
         )
 
     async def update_user(self, user_id: int, data: UserUpdate) -> User:
@@ -33,7 +36,21 @@ class UserService:
             raise ValueError("User not found")
         if user.is_system and data.role is not None and data.role != UserRole.ADMIN:
             raise ValueError("Cannot change system admin role")
-        update_kwargs = {k: v for k, v in data.model_dump(exclude_none=True).items()}
+        # allowed_pages is sent as an explicit list (possibly empty) when the
+        # admin edits permissions; keep the exclude_none path for the rest so
+        # unspecified fields aren't clobbered.
+        update_kwargs = {
+            k: v for k, v in data.model_dump(exclude_none=True).items()
+            if k != "allowed_pages"
+        }
+        # Only touch allowed_pages when the client explicitly sent it (so a
+        # plain role/active edit doesn't wipe existing restrictions). An
+        # explicit null means "full access". The system admin is never locked.
+        if "allowed_pages" in data.model_fields_set:
+            pages = data.allowed_pages
+            update_kwargs["allowed_pages"] = (
+                None if (user.is_system or pages is None) else json.dumps(pages)
+            )
         return await self.repo.update(user, **update_kwargs)
 
     async def delete_user(self, user_id: int, requesting_user: User) -> None:
