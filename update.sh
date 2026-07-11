@@ -61,8 +61,10 @@ info "Fetching latest code..."
 BEFORE="$(git -C "${REPO_DIR}" rev-parse --short HEAD 2>/dev/null || echo none)"
 # Don't let stray local changes to build artefacts block the pull.
 git -C "${REPO_DIR}" rev-parse --git-dir >/dev/null 2>&1 || fail "Not a git checkout: ${REPO_DIR}"
-git -C "${REPO_DIR}" checkout -- frontend/package-lock.json 2>/dev/null || true
-git -C "${REPO_DIR}" restore frontend/tsconfig.tsbuildinfo 2>/dev/null || true
+# Discard ALL local modifications to tracked files (build artefacts, scripts
+# that were deleted upstream, etc.). Untracked + .gitignored files (.env,
+# *.db, dist/) are never touched by checkout, so they stay intact.
+git -C "${REPO_DIR}" checkout -- . 2>/dev/null || true
 if ! git -C "${REPO_DIR}" pull --ff-only 2>&1 | tee -a "${LOG_FILE}"; then
     fail "git pull failed — resolve local changes and retry"
 fi

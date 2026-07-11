@@ -24,7 +24,9 @@ interface UpdateStatus {
 function SoftwareUpdateCard() {
   const { confirm, dialog } = useConfirm();
   const [polling, setPolling] = useState(false);
+  const [countdown, setCountdown] = useState<number | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
+  const didSucceedRef = useRef(false);
 
   const { data } = useQuery<UpdateStatus>({
     queryKey: ["software-update-status"],
@@ -32,19 +34,38 @@ function SoftwareUpdateCard() {
       const res = await apiClient.get("/system/update/status");
       return res.data as UpdateStatus;
     },
-    // Poll quickly while an update is running, otherwise stay quiet
     refetchInterval: polling ? 2000 : false,
   });
 
-  // Start/stop polling based on the reported status
+  // Start/stop polling + trigger reload countdown on success
   useEffect(() => {
-    if (data?.status === "running") setPolling(true);
-    else if (data?.status === "success" || data?.status === "failed") {
-      // one more tick, then stop
+    if (data?.status === "running") {
+      setPolling(true);
+      didSucceedRef.current = false;
+    } else if (data?.status === "success") {
+      const t = setTimeout(() => setPolling(false), 2500);
+      // Start auto-reload countdown only once per update run
+      if (!didSucceedRef.current) {
+        didSucceedRef.current = true;
+        setCountdown(5);
+      }
+      return () => clearTimeout(t);
+    } else if (data?.status === "failed") {
       const t = setTimeout(() => setPolling(false), 2500);
       return () => clearTimeout(t);
     }
   }, [data?.status]);
+
+  // Tick the countdown and reload when it hits 0
+  useEffect(() => {
+    if (countdown === null) return;
+    if (countdown <= 0) {
+      window.location.reload();
+      return;
+    }
+    const t = setTimeout(() => setCountdown((c) => (c !== null ? c - 1 : null)), 1000);
+    return () => clearTimeout(t);
+  }, [countdown]);
 
   // Auto-scroll the log
   useEffect(() => {
@@ -95,26 +116,40 @@ function SoftwareUpdateCard() {
         <div className="flex items-center gap-3 flex-wrap">
           <div className="flex-1 min-w-0">
             <p className="text-sm">
-              {running ? "Update in progress…"
-                : status === "success" ? "Up to date"
-                : status === "failed" ? "Last update failed"
+              {running
+                ? "Update in progress…"
+                : status === "success" && countdown !== null
+                ? `Update complete — reloading in ${countdown}s`
+                : status === "success"
+                ? "Up to date"
+                : status === "failed"
+                ? "Last update failed"
                 : "Pull the latest version from GitHub"}
             </p>
             <p className="text-xs text-muted-foreground mt-0.5">
               Rebuilds the app, installs new dependencies, migrates the database, and restarts services.
             </p>
           </div>
-          {status === "success" && <Badge variant="success" className="gap-1"><CheckCircle2 className="w-3 h-3" /> Success</Badge>}
+
+          {status === "success" && countdown !== null && (
+            <Badge variant="info" className="gap-1">
+              <RefreshCw className="w-3 h-3 animate-spin" /> Reloading in {countdown}s
+            </Badge>
+          )}
+          {status === "success" && countdown === null && (
+            <Badge variant="success" className="gap-1"><CheckCircle2 className="w-3 h-3" /> Success</Badge>
+          )}
           {status === "failed" && <Badge variant="destructive" className="gap-1"><XCircle className="w-3 h-3" /> Failed</Badge>}
           {running && <Badge variant="info" className="gap-1"><Loader2 className="w-3 h-3 animate-spin" /> Running</Badge>}
+
           <Button
             className="gap-1.5"
             loading={startMut.isPending || running}
-            disabled={running}
+            disabled={running || countdown !== null}
             onClick={requestUpdate}
           >
             <DownloadCloud className="w-4 h-4" />
-            {running ? "Updating…" : "Check for updates"}
+            {running ? "Updating…" : countdown !== null ? `Reloading in ${countdown}s…` : "Check for updates"}
           </Button>
         </div>
 
