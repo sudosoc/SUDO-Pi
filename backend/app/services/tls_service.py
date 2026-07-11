@@ -50,8 +50,9 @@ async def get_cert_info() -> dict:
             "not_before": None,
             "not_after": None,
             "days_remaining": None,
-            "san": [],
+            "sans": [],
             "serial": None,
+            "fingerprint_sha256": None,
         }
 
     rc, out = await _run([
@@ -60,10 +61,11 @@ async def get_cert_info() -> dict:
         "-noout",
         "-subject", "-issuer",
         "-dates", "-serial",
+        "-fingerprint", "-sha256",
         "-ext", "subjectAltName",
     ])
 
-    info: dict = {"exists": True, "san": []}
+    info: dict = {"exists": True, "sans": []}
 
     if rc != 0:
         info["error"] = out
@@ -87,9 +89,14 @@ async def get_cert_info() -> dict:
                 info["days_remaining"] = delta.days
         elif line.startswith("serial="):
             info["serial"] = line.split("=", 1)[1].strip()
+        elif "Fingerprint=" in line or "fingerprint" in line.lower():
+            # e.g. "SHA256 Fingerprint=AA:BB:CC:..."
+            parts = line.split("=", 1)
+            if len(parts) == 2:
+                info["fingerprint_sha256"] = parts[1].strip()
         elif "DNS:" in line or "IP:" in line:
-            sans = re.findall(r"(DNS|IP):[^\s,]+", line)
-            info["san"].extend(s.strip() for s in sans)
+            sans = re.findall(r"(?:DNS|IP):[^\s,]+", line)
+            info["sans"].extend(s.strip() for s in sans)
 
     return info
 

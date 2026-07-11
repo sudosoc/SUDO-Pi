@@ -101,11 +101,11 @@ function CertInfoCard({ cert, refetch, isFetching }: { cert: CertInfo; refetch: 
             <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Valid Until</p>
             <p className={cn("font-mono text-xs", expiryColor(days))}>{cert.not_after}</p>
           </div>
-          {cert.sans.length > 0 && (
+          {(cert.sans ?? []).length > 0 && (
             <div className="sm:col-span-2">
               <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">Subject Alternative Names</p>
               <div className="flex flex-wrap gap-1">
-                {cert.sans.map((san) => (
+                {(cert.sans ?? []).map((san) => (
                   <span key={san} className="text-[11px] font-mono bg-secondary/50 px-1.5 py-0.5 rounded">{san}</span>
                 ))}
               </div>
