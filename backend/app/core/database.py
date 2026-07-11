@@ -75,7 +75,8 @@ async def get_db() -> AsyncGenerator[AsyncSession, None]:
 async def create_tables() -> None:
     from app.models import (  # noqa: F401
         user, audit, network, session as sess, metrics, alerts, uptime, backup,
-        os_update, device_policy, automation,
+        os_update, device_policy, automation, known_device, device_bandwidth,
+        docker_stats_history,
     )
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -97,3 +98,15 @@ def _apply_lightweight_migrations(conn) -> None:
 
     if "allowed_pages" not in _columns("users"):
         conn.execute(text("ALTER TABLE users ADD COLUMN allowed_pages TEXT"))
+
+    # device_policies: per-day curfew + monthly quota columns
+    dp_cols = _columns("device_policies")
+    if "curfew_schedule" not in dp_cols:
+        conn.execute(text("ALTER TABLE device_policies ADD COLUMN curfew_schedule TEXT"))
+    if "monthly_quota_mb" not in dp_cols:
+        conn.execute(text("ALTER TABLE device_policies ADD COLUMN monthly_quota_mb INTEGER NOT NULL DEFAULT 0"))
+    if "quota_reset_day" not in dp_cols:
+        conn.execute(text("ALTER TABLE device_policies ADD COLUMN quota_reset_day INTEGER NOT NULL DEFAULT 1"))
+
+    # alerts: new_device metric support — alert_history may lack rule_id NOT NULL
+    # (handled by the existing nullable FK on AlertHistory.rule_id)

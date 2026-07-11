@@ -1,8 +1,8 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   CheckCircle2, AlertTriangle, XCircle, RefreshCw, Stethoscope,
-  Server, ShieldCheck, Wrench, HardDrive, Globe2,
+  Server, ShieldCheck, Wrench, HardDrive, Globe2, FileDown, ChevronDown,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -48,6 +48,29 @@ const CATEGORY_ORDER = ["Services", "Network", "Privileges", "Tooling", "Storage
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function DiagnosticsPage() {
+  const [exportOpen, setExportOpen] = useState(false);
+  const [exporting, setExporting] = useState(false);
+
+  async function downloadReport(fmt: "json" | "text") {
+    setExporting(true);
+    setExportOpen(false);
+    try {
+      const res = await apiClient.get(`/diagnostics/export?fmt=${fmt}`, { responseType: "blob" });
+      const ext = fmt === "json" ? "json" : "txt";
+      const ts = new Date().toISOString().replace(/[:.]/g, "-").slice(0, 19);
+      const url = URL.createObjectURL(res.data as Blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `sudo-pi-report-${ts}.${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   const { data, isLoading, isFetching, refetch, error } = useQuery<DiagnosticsReport>({
     queryKey: ["diagnostics"],
     queryFn: async () => {
@@ -86,16 +109,53 @@ export default function DiagnosticsPage() {
             </p>
           </div>
         </div>
-        <Button
-          variant="outline"
-          size="sm"
-          className="gap-1.5"
-          onClick={() => refetch()}
-          disabled={isFetching}
-        >
-          <RefreshCw className={cn("w-3.5 h-3.5", isFetching && "animate-spin")} />
-          Re-run checks
-        </Button>
+        <div className="flex items-center gap-2">
+          {/* Export dropdown */}
+          <div className="relative">
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5"
+              onClick={() => setExportOpen((o) => !o)}
+              disabled={exporting || !data}
+            >
+              <FileDown className="w-3.5 h-3.5" />
+              {exporting ? "Exporting…" : "Export Report"}
+              <ChevronDown className="w-3 h-3 opacity-60" />
+            </Button>
+            {exportOpen && (
+              <>
+                <div className="fixed inset-0 z-10" onClick={() => setExportOpen(false)} />
+                <div className="absolute right-0 top-full mt-1 z-20 min-w-[140px] rounded-lg border border-border bg-card shadow-xl overflow-hidden">
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-secondary/50 transition-colors flex items-center gap-2"
+                    onClick={() => downloadReport("json")}
+                  >
+                    <span className="font-mono text-xs text-muted-foreground">JSON</span>
+                    Full machine-readable
+                  </button>
+                  <button
+                    className="w-full text-left px-3 py-2 text-sm hover:bg-secondary/50 transition-colors flex items-center gap-2"
+                    onClick={() => downloadReport("text")}
+                  >
+                    <span className="font-mono text-xs text-muted-foreground">TXT</span>
+                    Human-readable
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            className="gap-1.5"
+            onClick={() => refetch()}
+            disabled={isFetching}
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5", isFetching && "animate-spin")} />
+            Re-run checks
+          </Button>
+        </div>
       </div>
 
       {/* Overall banner */}

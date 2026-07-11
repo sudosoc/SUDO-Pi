@@ -1,10 +1,19 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   File, Folder, FolderOpen, Upload, Download, Trash2,
   Edit3, Plus, ChevronRight, Home,
-  Archive, RefreshCw, Search,
+  Archive, RefreshCw, Search, Code, X, Save,
 } from "lucide-react";
+import ReactCodeMirror from "@uiw/react-codemirror";
+import { oneDark } from "@codemirror/theme-one-dark";
+import { python } from "@codemirror/lang-python";
+import { javascript } from "@codemirror/lang-javascript";
+import { json } from "@codemirror/lang-json";
+import { html } from "@codemirror/lang-html";
+import { css } from "@codemirror/lang-css";
+import { markdown } from "@codemirror/lang-markdown";
+import type { Extension } from "@codemirror/state";
 import { filesApi } from "@/api/files";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -14,6 +23,171 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn, formatBytes } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
 import type { FileEntry } from "@/types";
+
+// ─── Language detection ───────────────────────────────────────────────────────
+
+const TEXT_EXTENSIONS = new Set([
+  "txt", "log", "sh", "bash", "zsh", "fish", "env", "conf", "cfg", "ini",
+  "toml", "yaml", "yml", "xml", "csv", "sql", "dockerfile", "gitignore",
+  "gitattributes", "editorconfig", "htaccess", "service", "timer",
+]);
+
+function getLanguageExtension(filename: string): Extension | null {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  if (["py", "pyw"].includes(ext)) return python();
+  if (["js", "jsx", "ts", "tsx", "mjs", "cjs"].includes(ext)) return javascript({ typescript: ext === "ts" || ext === "tsx", jsx: ext === "jsx" || ext === "tsx" });
+  if (ext === "json") return json();
+  if (["html", "htm", "jinja", "jinja2", "j2"].includes(ext)) return html();
+  if (["css", "scss", "sass", "less"].includes(ext)) return css();
+  if (["md", "markdown", "mdx"].includes(ext)) return markdown();
+  return null;
+}
+
+function isTextFile(filename: string): boolean {
+  const ext = filename.split(".").pop()?.toLowerCase() ?? "";
+  return (
+    TEXT_EXTENSIONS.has(ext) ||
+    getLanguageExtension(filename) !== null ||
+    !filename.includes(".")
+  );
+}
+
+// ─── File Editor Modal ────────────────────────────────────────────────────────
+
+interface FileEditorProps {
+  path: string;
+  onClose: () => void;
+}
+
+function FileEditorModal({ path, onClose }: FileEditorProps) {
+  const filename = path.split("/").pop() ?? path;
+  const langExt = getLanguageExtension(filename);
+  const extensions: Extension[] = langExt ? [langExt] : [];
+
+  const [content, setContent] = useState("");
+  const [isDirty, setIsDirty] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { isLoading } = useQuery({
+    queryKey: ["file-content", path],
+    queryFn: async () => {
+      const data = await filesApi.readFile(path);
+      const text = typeof data === "string" ? data : (data?.content ?? "");
+      setContent(text);
+      setIsDirty(false);
+      return text;
+    },
+    staleTime: Infinity,
+  });
+
+  const saveMut = useMutation({
+    mutationFn: () => filesApi.writeFile(path, content),
+    onSuccess: () => {
+      setIsDirty(false);
+      toast({ title: "File saved", variant: "success" } as { title: string; variant: "success" });
+      queryClient.invalidateQueries({ queryKey: ["files"] });
+    },
+    onError: () => toast({ title: "Save failed", variant: "destructive" } as { title: string; variant: "destructive" }),
+  });
+
+  const handleChange = useCallback((val: string) => {
+    setContent(val);
+    setIsDirty(true);
+  }, []);
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if ((e.ctrlKey || e.metaKey) && e.key === "s") {
+      e.preventDefault();
+      if (isDirty) saveMut.mutate();
+    }
+    if (e.key === "Escape" && !isDirty) onClose();
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4"
+      onClick={(e) => { if (e.target === e.currentTarget && !isDirty) onClose(); }}
+    >
+      <div
+        className="w-full max-w-5xl h-[80vh] bg-card border border-border rounded-xl shadow-2xl flex flex-col"
+        onKeyDown={handleKeyDown}
+        tabIndex={-1}
+      >
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-2.5 border-b border-border shrink-0">
+          <div className="flex items-center gap-2">
+            <Code className="w-4 h-4 text-primary" />
+            <span className="text-sm font-mono font-medium truncate max-w-sm">{filename}</span>
+            {isDirty && <Badge variant="warning" className="text-[10px] py-0 px-1.5">Unsaved</Badge>}
+            {langExt && (
+              <Badge variant="outline" className="text-[10px] py-0 px-1.5 text-muted-foreground">
+                {filename.split(".").pop()?.toUpperCase()}
+              </Badge>
+            )}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              className="gap-1.5 h-7 text-xs"
+              disabled={!isDirty}
+              loading={saveMut.isPending}
+              onClick={() => saveMut.mutate()}
+            >
+              <Save className="w-3.5 h-3.5" />
+              Save
+              <span className="text-[10px] opacity-60 hidden sm:inline">(Ctrl+S)</span>
+            </Button>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="h-7 w-7 p-0"
+              onClick={onClose}
+              title="Close editor"
+            >
+              <X className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+
+        {/* Editor */}
+        <div className="flex-1 overflow-hidden">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-full">
+              <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+            </div>
+          ) : (
+            <ReactCodeMirror
+              value={content}
+              onChange={handleChange}
+              theme={oneDark}
+              extensions={extensions}
+              height="100%"
+              style={{ height: "100%", fontSize: "13px" }}
+              basicSetup={{
+                lineNumbers: true,
+                foldGutter: true,
+                highlightActiveLine: true,
+                highlightSelectionMatches: true,
+                autocompletion: true,
+                searchKeymap: true,
+                history: true,
+              }}
+            />
+          )}
+        </div>
+
+        {/* Status bar */}
+        <div className="px-4 py-1.5 border-t border-border text-[10px] text-muted-foreground flex items-center gap-4 shrink-0">
+          <span>{content.split("\n").length} lines</span>
+          <span>{content.length} chars</span>
+          <span className="ml-auto truncate max-w-xs font-mono opacity-60">{path}</span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── File browser components ──────────────────────────────────────────────────
 
 function FileBreadcrumb({ path, onNavigate }: { path: string; onNavigate: (p: string) => void }) {
   const parts = path.split("/").filter(Boolean);
@@ -55,12 +229,15 @@ function FileIcon({ entry }: { entry: FileEntry }) {
   return <File className="w-4 h-4 text-muted-foreground shrink-0" />;
 }
 
+// ─── Main Page ────────────────────────────────────────────────────────────────
+
 export default function FilesPage() {
   const [currentPath, setCurrentPath] = useState("/home");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [filter, setFilter] = useState("");
   const [renameTarget, setRenameTarget] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
+  const [editingFile, setEditingFile] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const queryClient = useQueryClient();
 
@@ -148,6 +325,11 @@ export default function FilesPage() {
 
   return (
     <div className="p-6 h-full flex flex-col gap-4">
+      {/* File editor modal */}
+      {editingFile && (
+        <FileEditorModal path={editingFile} onClose={() => setEditingFile(null)} />
+      )}
+
       <div className="flex items-center gap-2 flex-wrap">
         <FileBreadcrumb path={currentPath} onNavigate={navigate} />
         <div className="ml-auto flex items-center gap-1">
@@ -197,7 +379,7 @@ export default function FilesPage() {
                     <th className="text-right px-4 py-2 text-muted-foreground font-medium text-xs hidden md:table-cell">Size</th>
                     <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs hidden lg:table-cell">Permissions</th>
                     <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs hidden lg:table-cell">Owner</th>
-                    <th className="w-8 px-2 py-2" />
+                    <th className="w-24 px-2 py-2" />
                   </tr>
                 </thead>
                 <tbody>
@@ -265,6 +447,15 @@ export default function FilesPage() {
                       </td>
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                          {!entry.is_dir && isTextFile(entry.name) && (
+                            <button
+                              className="p-1 text-muted-foreground hover:text-primary transition-colors"
+                              title="Edit file content"
+                              onClick={() => setEditingFile(entry.path)}
+                            >
+                              <Code className="w-3.5 h-3.5" />
+                            </button>
+                          )}
                           {!entry.is_dir && (
                             <a href={filesApi.getDownloadUrl(entry.path)} download className="p-1 text-muted-foreground hover:text-foreground">
                               <Download className="w-3.5 h-3.5" />
@@ -272,12 +463,14 @@ export default function FilesPage() {
                           )}
                           <button
                             className="p-1 text-muted-foreground hover:text-foreground"
+                            title="Rename"
                             onClick={() => { setRenameTarget(entry.path); setNewName(entry.name); }}
                           >
                             <Edit3 className="w-3.5 h-3.5" />
                           </button>
                           <button
                             className="p-1 text-muted-foreground hover:text-destructive"
+                            title="Delete"
                             onClick={() => { if (confirm(`Delete ${entry.name}?`)) deleteMutation.mutate(entry.path); }}
                           >
                             <Trash2 className="w-3.5 h-3.5" />

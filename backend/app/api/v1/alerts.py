@@ -9,7 +9,7 @@ from app.services import alerts_service
 
 router = APIRouter(prefix="/alerts", tags=["Alerts"])
 
-_VALID_METRICS = {"cpu", "ram", "disk", "temperature", "service_down"}
+_VALID_METRICS = {"cpu", "ram", "disk", "temperature", "service_down", "new_device"}
 _VALID_CHANNELS = {"discord", "telegram", "email"}
 
 

@@ -7,9 +7,11 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
-from app.core.dependencies import ActiveUser, AdminUser, OperatorUser, CsrfVerified
+from fastapi import Query
+
+from app.core.dependencies import ActiveUser, AdminUser, OperatorUser, CsrfVerified, DBSession
 from app.core.security import verify_access_token, ACCESS_COOKIE_NAME
-from app.services import docker_service, docker_resource_service
+from app.services import docker_service, docker_resource_service, docker_stats_service
 
 router = APIRouter(prefix="/docker", tags=["docker"])
 
@@ -94,6 +96,23 @@ async def remove_image(image_id: str, force: bool = False, _: AdminUser = None):
         raise HTTPException(404, str(exc))
     except RuntimeError as exc:
         raise HTTPException(500, str(exc))
+
+
+@router.get("/containers/{container_id}/stats/history")
+async def get_container_stats_history(
+    container_id: str,
+    _: ActiveUser,
+    db: DBSession,
+    minutes: int = Query(60, ge=1, le=1440),
+) -> list[dict]:
+    """Return resource-usage history for a container (last N minutes, default 60)."""
+    return await docker_stats_service.get_history(db, container_id, minutes=minutes)
+
+
+@router.get("/stats/latest")
+async def get_all_latest_stats(_: ActiveUser, db: DBSession) -> list[dict]:
+    """Return the most recent resource snapshot for every known container."""
+    return await docker_stats_service.get_latest(db)
 
 
 @router.websocket("/containers/{container_id}/logs/stream")

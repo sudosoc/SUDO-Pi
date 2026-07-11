@@ -34,6 +34,8 @@ const DockerComposePage   = lazy(() => import("@/pages/DockerComposePage"));
 const AppStorePage        = lazy(() => import("@/pages/AppStorePage"));
 const BackupPage          = lazy(() => import("@/pages/BackupPage"));
 const DiagnosticsPage     = lazy(() => import("@/pages/DiagnosticsPage"));
+const NetworkScannerPage  = lazy(() => import("@/pages/NetworkScannerPage"));
+const TlsPage             = lazy(() => import("@/pages/TlsPage"));
 const UpdatesPage         = lazy(() => import("@/pages/UpdatesPage"));
 const DeviceControlPage   = lazy(() => import("@/pages/DeviceControlPage"));
 const RemoteDesktopPage   = lazy(() => import("@/pages/RemoteDesktopPage"));
@@ -95,6 +97,8 @@ export default function App() {
             <Route path="/app-store"      element={<AppStorePage />} />
             <Route path="/backup"         element={<BackupPage />} />
           <Route path="/diagnostics"    element={<DiagnosticsPage />} />
+          <Route path="/network-scanner" element={<NetworkScannerPage />} />
+          <Route path="/tls"            element={<TlsPage />} />
           <Route path="/updates"        element={<UpdatesPage />} />
           <Route path="/device-control" element={<DeviceControlPage />} />
           <Route path="/remote-desktop" element={<RemoteDesktopPage />} />

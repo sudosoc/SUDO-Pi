@@ -3,8 +3,9 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Play, Square, RefreshCw, Trash2, Terminal,
-  X, Cpu, MemoryStick, AlertCircle, Box, Layers,
+  X, Cpu, MemoryStick, AlertCircle, Box, Layers, BarChart2,
 } from "lucide-react";
+import ReactECharts from "echarts-for-react";
 import { apiClient, getApiError } from "@/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState } from "@/components/ui/EmptyState";
@@ -305,12 +306,166 @@ function ResourcesPanel({ containerId }: { containerId: string }) {
   );
 }
 
+// ─── Stats Graph Panel ────────────────────────────────────────────────────────
+
+interface StatsPoint {
+  timestamp: string;
+  cpu_percent: number;
+  mem_mb: number;
+  mem_limit_mb: number;
+  net_rx_mb: number;
+  net_tx_mb: number;
+}
+
+function StatsPanel({ containerId, containerName, onClose }: { containerId: string; containerName: string; onClose: () => void }) {
+  const [minutes, setMinutes] = useState(60);
+
+  const { data = [], isLoading } = useQuery<StatsPoint[]>({
+    queryKey: ["docker-stats-history", containerId, minutes],
+    queryFn: async () => {
+      const { data } = await apiClient.get<StatsPoint[]>(
+        `/docker/containers/${containerId}/stats/history?minutes=${minutes}`
+      );
+      return Array.isArray(data) ? data : [];
+    },
+    refetchInterval: 30_000,
+    staleTime: 20_000,
+  });
+
+  const labels = data.map((d) => {
+    const dt = new Date(d.timestamp);
+    return dt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+  });
+
+  const chartBase = {
+    animation: false,
+    backgroundColor: "transparent",
+    grid: { top: 22, right: 8, bottom: 20, left: 42 },
+    xAxis: { type: "category" as const, data: labels, axisLabel: { color: "#6b7280", fontSize: 9 }, axisLine: { lineStyle: { color: "#1f2937" } }, splitLine: { show: false }, boundaryGap: false },
+    tooltip: { trigger: "axis" as const, axisPointer: { type: "line" as const } },
+  };
+
+  const yAxis = (name: string, max?: number) => ({
+    type: "value" as const,
+    name,
+    nameTextStyle: { color: "#6b7280", fontSize: 9 },
+    max,
+    axisLabel: { color: "#6b7280", fontSize: 9 },
+    axisLine: { show: false },
+    splitLine: { lineStyle: { color: "#1f2937" } },
+  });
+
+  const lineSeries = (name: string, data: number[], color: string) => ({
+    name,
+    type: "line" as const,
+    data,
+    smooth: true,
+    symbol: "none",
+    lineStyle: { color, width: 1.5 },
+    areaStyle: {
+      color: { type: "linear" as const, x: 0, y: 0, x2: 0, y2: 1, colorStops: [{ offset: 0, color: `${color}40` }, { offset: 1, color: `${color}05` }] },
+    },
+  });
+
+  return (
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <h4 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide flex items-center gap-1.5">
+          <BarChart2 className="w-3.5 h-3.5" />
+          Resource graphs — {containerName}
+        </h4>
+        <div className="flex items-center gap-2">
+          <div className="flex gap-1">
+            {[30, 60, 180, 360].map((m) => (
+              <button
+                key={m}
+                onClick={() => setMinutes(m)}
+                className={cn(
+                  "px-1.5 py-0.5 text-[10px] rounded transition-colors",
+                  minutes === m ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                )}
+              >
+                {m < 60 ? `${m}m` : `${m / 60}h`}
+              </button>
+            ))}
+          </div>
+          <Button variant="ghost" size="icon-sm" className="h-6 w-6" onClick={onClose}>
+            <X className="w-3 h-3" />
+          </Button>
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="grid grid-cols-3 gap-3">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="h-24 bg-muted/30 rounded animate-pulse" />
+          ))}
+        </div>
+      ) : data.length === 0 ? (
+        <div className="text-center py-6 text-xs text-muted-foreground">
+          No stats data yet — collected every 30 seconds while containers are running.
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          {/* CPU */}
+          <div className="rounded-lg bg-muted/10 border border-border/50 p-2">
+            <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1">
+              <Cpu className="w-3 h-3" /> CPU %
+            </p>
+            <ReactECharts
+              option={{
+                ...chartBase,
+                yAxis: yAxis("%", 100),
+                series: [lineSeries("CPU", data.map((d) => d.cpu_percent), "#06b6d4")],
+              }}
+              style={{ height: 80 }}
+              opts={{ renderer: "svg" }}
+            />
+          </div>
+          {/* Memory */}
+          <div className="rounded-lg bg-muted/10 border border-border/50 p-2">
+            <p className="text-[10px] text-muted-foreground mb-1 flex items-center gap-1">
+              <MemoryStick className="w-3 h-3" /> Memory (MB)
+            </p>
+            <ReactECharts
+              option={{
+                ...chartBase,
+                yAxis: yAxis("MB"),
+                series: [lineSeries("Mem", data.map((d) => d.mem_mb), "#8b5cf6")],
+              }}
+              style={{ height: 80 }}
+              opts={{ renderer: "svg" }}
+            />
+          </div>
+          {/* Network */}
+          <div className="rounded-lg bg-muted/10 border border-border/50 p-2">
+            <p className="text-[10px] text-muted-foreground mb-1">Network I/O (MB)</p>
+            <ReactECharts
+              option={{
+                ...chartBase,
+                legend: { data: ["RX", "TX"], textStyle: { color: "#9ca3af", fontSize: 9 }, top: 2 },
+                yAxis: yAxis("MB"),
+                series: [
+                  lineSeries("RX", data.map((d) => d.net_rx_mb), "#10b981"),
+                  lineSeries("TX", data.map((d) => d.net_tx_mb), "#f59e0b"),
+                ],
+              }}
+              style={{ height: 80 }}
+              opts={{ renderer: "svg" }}
+            />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ─── Container Row ────────────────────────────────────────────────────────────
 
 function ContainerRow({ c }: { c: Container }) {
   const queryClient = useQueryClient();
   const [expanded, setExpanded] = useState(false);
-  const [activePanel, setActivePanel] = useState<"logs" | "resources" | null>(null);
+  const [activePanel, setActivePanel] = useState<"logs" | "resources" | "stats" | null>(null);
 
   const containerAction = useMutation({
     mutationFn: ({ action }: { action: string }) =>
@@ -322,7 +477,7 @@ function ContainerRow({ c }: { c: Container }) {
     onError: () => toast({ title: "Action failed", variant: "destructive" } as { title: string; variant: "destructive" }),
   });
 
-  const togglePanel = (panel: "logs" | "resources") => {
+  const togglePanel = (panel: "logs" | "resources" | "stats") => {
     if (!expanded) setExpanded(true);
     setActivePanel((prev) => {
       if (prev === panel) {
@@ -393,6 +548,15 @@ function ContainerRow({ c }: { c: Container }) {
             >
               <Cpu className="w-3 h-3" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className={cn("h-7 w-7", activePanel === "stats" && "text-primary bg-primary/10")}
+              title="Resource Graphs"
+              onClick={() => togglePanel("stats")}
+            >
+              <BarChart2 className="w-3 h-3" />
+            </Button>
           </div>
         </td>
       </tr>
@@ -423,6 +587,13 @@ function ContainerRow({ c }: { c: Container }) {
                 </div>
                 <ResourcesPanel containerId={c.id} />
               </div>
+            )}
+            {activePanel === "stats" && (
+              <StatsPanel
+                containerId={c.id}
+                containerName={c.name.replace("/", "")}
+                onClose={() => { setActivePanel(null); setExpanded(false); }}
+              />
             )}
           </td>
         </tr>

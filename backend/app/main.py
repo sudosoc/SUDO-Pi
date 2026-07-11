@@ -22,7 +22,10 @@ from app.core.config import settings
 from app.core.database import create_tables
 from app.core.logging_config import setup_logging
 from app.services.auth_service import AuthService
-from app.services import device_policy_service, os_update_service, automation_service
+from app.services import (
+    device_policy_service, os_update_service, automation_service,
+    known_device_service, device_bandwidth_service, docker_stats_service,
+)
 from app.core.database import AsyncSessionFactory
 from app.websockets.system_ws import start_metrics_broadcaster
 
@@ -52,6 +55,9 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(device_policy_service.refresh_loop()),
         asyncio.create_task(device_policy_service.reapply_on_startup()),
         asyncio.create_task(automation_service.evaluation_loop()),
+        asyncio.create_task(known_device_service.monitor_loop()),
+        asyncio.create_task(device_bandwidth_service.collection_loop()),
+        asyncio.create_task(docker_stats_service.collection_loop()),
     ]
     logger.info("{} startup complete. Listening...", settings.APP_NAME)
 

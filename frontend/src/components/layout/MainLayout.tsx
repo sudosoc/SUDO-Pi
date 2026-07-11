@@ -45,6 +45,8 @@ const ROUTE_TITLES: Record<string, string> = {
   "/settings":         "Settings",
   "/network-traffic":  "Traffic Monitor",
   "/diagnostics":      "System Diagnostics",
+  "/network-scanner":  "Network Scanner",
+  "/tls":              "TLS Certificate Manager",
   "/account":          "My Account",
 };
 

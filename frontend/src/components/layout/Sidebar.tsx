@@ -7,6 +7,7 @@ import {
   Network, Flame, Clock, KeyRound, Activity, Bell, HardDrive,
   Monitor, Server, Gauge, BarChart2, Layers, Store, Archive, Stethoscope,
   DownloadCloud, ShieldBan, LayoutGrid, Globe, Workflow, MonitorPlay, UserCog,
+  Radar, LockKeyhole,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessPage } from "@/lib/pages";
@@ -51,7 +52,8 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/network",         icon: Wifi,              label: "Network" },
       { to: "/network-traffic", icon: BarChart2,         label: "Traffic" },
       { to: "/devices",         icon: MonitorSmartphone, label: "Devices" },
-      { to: "/device-control",  icon: ShieldBan,         label: "Device Control", roles: ["admin"] },
+      { to: "/device-control",  icon: ShieldBan,         label: "Device Control",  roles: ["admin"] },
+      { to: "/network-scanner", icon: Radar,             label: "Network Scanner", roles: ["admin", "operator"] },
       { to: "/dns",             icon: Globe,             label: "DNS & DHCP", roles: ["admin"] },
       { to: "/vpn",             icon: Network,           label: "VPN",        roles: ["admin", "operator"] },
       { to: "/firewall",        icon: Flame,             label: "Firewall",   roles: ["admin"] },
@@ -90,12 +92,13 @@ const NAV_GROUPS: NavGroup[] = [
   {
     label: "Admin",
     items: [
-      { to: "/users",        icon: Users,      label: "Dashboard Users", roles: ["admin"] },
+      { to: "/users",        icon: Users,        label: "Dashboard Users", roles: ["admin"] },
       { to: "/system-users", icon: UserCog,    label: "Pi Users",        roles: ["admin"] },
-      { to: "/security", icon: Shield,   label: "Security", roles: ["admin"] },
-      { to: "/backup",   icon: Archive,       label: "Backup",   roles: ["admin"] },
-      { to: "/updates",  icon: DownloadCloud, label: "Updates",  roles: ["admin"] },
-      { to: "/settings", icon: Settings, label: "Settings", roles: ["admin"] },
+      { to: "/security",     icon: Shield,     label: "Security",        roles: ["admin"] },
+      { to: "/tls",          icon: LockKeyhole, label: "TLS Certs",      roles: ["admin"] },
+      { to: "/backup",       icon: Archive,    label: "Backup",          roles: ["admin"] },
+      { to: "/updates",      icon: DownloadCloud, label: "Updates",      roles: ["admin"] },
+      { to: "/settings",     icon: Settings,   label: "Settings",        roles: ["admin"] },
     ],
   },
 ];

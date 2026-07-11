@@ -302,3 +302,105 @@ async def run_diagnostics() -> dict:
     )
 
     return {"overall": overall, "summary": summary, "checks": checks}
+
+
+async def export_report() -> dict:
+    """Generate a comprehensive system diagnostic report for download."""
+    from datetime import datetime, timezone
+    import platform
+
+    report: dict = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "app": "SUDO-Pi Dashboard",
+    }
+
+    # System info
+    rc_hostname, hostname = await _run(["hostname", "-f"], timeout=3.0)
+    rc_uname, uname = await _run(["uname", "-a"], timeout=3.0)
+    rc_uptime, uptime = await _run(["uptime", "-p"], timeout=3.0)
+    rc_loadavg, loadavg = await _run(["cat", "/proc/loadavg"], timeout=2.0)
+    rc_mem, meminfo = await _run(["free", "-m"], timeout=3.0)
+    rc_disk, diskinfo = await _run(["df", "-h"], timeout=3.0)
+    rc_temp, tempinfo = await _run(["cat", "/sys/class/thermal/thermal_zone0/temp"], timeout=2.0)
+
+    report["system"] = {
+        "hostname": hostname if rc_hostname == 0 else platform.node(),
+        "kernel": uname if rc_uname == 0 else platform.uname().release,
+        "uptime": uptime if rc_uptime == 0 else "unknown",
+        "load_avg": loadavg if rc_loadavg == 0 else "unknown",
+        "memory": meminfo if rc_mem == 0 else "unknown",
+        "disk": diskinfo if rc_disk == 0 else "unknown",
+        "temperature_celsius": (
+            round(int(tempinfo) / 1000, 1) if rc_temp == 0 and tempinfo.isdigit() else None
+        ),
+        "python": platform.python_version(),
+    }
+
+    # Network interfaces
+    rc_ifaces, ifaces = await _run(["ip", "-brief", "addr"], timeout=4.0)
+    rc_routes, routes = await _run(["ip", "route"], timeout=4.0)
+    rc_dns, dns_conf = await _run(["cat", "/etc/resolv.conf"], timeout=2.0)
+    report["network"] = {
+        "interfaces": ifaces if rc_ifaces == 0 else "",
+        "routes": routes if rc_routes == 0 else "",
+        "resolv_conf": dns_conf if rc_dns == 0 else "",
+    }
+
+    # Services
+    rc_srv, services_out = await _run(
+        ["systemctl", "list-units", "--type=service", "--state=running", "--no-pager", "--no-legend"],
+        timeout=8.0,
+    )
+    report["running_services"] = services_out if rc_srv == 0 else ""
+
+    # Failed units
+    rc_fail, failed_out = await _run(
+        ["systemctl", "--failed", "--no-pager", "--no-legend"],
+        timeout=5.0,
+    )
+    report["failed_units"] = failed_out if rc_fail == 0 else ""
+
+    # Top processes by CPU
+    rc_ps, ps_out = await _run(
+        ["ps", "aux", "--sort=-%cpu"],
+        timeout=5.0,
+    )
+    ps_lines = ps_out.splitlines()[:25] if rc_ps == 0 else []
+    report["top_processes"] = "\n".join(ps_lines)
+
+    # Recent syslog / journal
+    rc_log, journal_out = await _run(
+        ["journalctl", "-n", "100", "--no-pager", "--output=short"],
+        timeout=8.0,
+    )
+    report["recent_journal"] = journal_out if rc_log == 0 else ""
+
+    # Backend logs
+    rc_blog, backend_log = await _run(
+        ["journalctl", "-u", "sudo-pi-backend", "-n", "80", "--no-pager"],
+        timeout=5.0,
+    )
+    report["backend_logs"] = backend_log if rc_blog == 0 else ""
+
+    # iptables rules (sanitised — no secrets)
+    rc_ipt, ipt_out = await _run(
+        ["sudo", "-n", "iptables", "-L", "-n", "-v"],
+        timeout=5.0,
+    )
+    report["iptables"] = ipt_out if rc_ipt == 0 else "unavailable (sudo required)"
+
+    # Docker containers
+    rc_dk, docker_out = await _run(
+        ["docker", "ps", "-a", "--format", "table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}"],
+        timeout=6.0,
+    )
+    report["docker_containers"] = docker_out if rc_dk == 0 else "Docker not available"
+
+    # nginx config test
+    rc_ng, nginx_test = await _run(["sudo", "-n", "nginx", "-t"], timeout=5.0)
+    report["nginx_config_test"] = nginx_test if rc_ng == 0 else nginx_test
+
+    # Run and embed the standard diagnostics report
+    report["diagnostics"] = await run_diagnostics()
+
+    return report

@@ -11,7 +11,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { SparklineChart } from "@/components/dashboard/SparklineChart";
-import { formatBytes, formatUptime } from "@/lib/utils";
+import { formatBytes, formatUptime, cn } from "@/lib/utils";
 import {
   Activity,
   Clock,
@@ -24,6 +24,8 @@ import {
   GripVertical,
   X,
   Check,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { toast } from "@/components/ui/use-toast";
@@ -53,17 +55,16 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
 };
 
 const STORAGE_KEY = "dashboard-widget-order";
+const HIDDEN_KEY = "dashboard-widget-hidden";
 
 function loadOrder(): WidgetId[] {
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_ORDER;
     const parsed = JSON.parse(raw) as unknown[];
-    // Validate and fill any missing IDs
     const valid = parsed.filter((id): id is WidgetId =>
       DEFAULT_ORDER.includes(id as WidgetId)
     );
-    // Append any new widget IDs not in the saved order
     const missing = DEFAULT_ORDER.filter((id) => !valid.includes(id));
     return [...valid, ...missing];
   } catch {
@@ -75,7 +76,29 @@ function saveOrder(order: WidgetId[]) {
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(order));
   } catch {
-    // Silently ignore storage errors
+    // ignore
+  }
+}
+
+function loadHidden(): Set<WidgetId> {
+  try {
+    const raw = localStorage.getItem(HIDDEN_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw) as unknown[];
+    const valid = parsed.filter((id): id is WidgetId =>
+      DEFAULT_ORDER.includes(id as WidgetId)
+    );
+    return new Set(valid);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveHidden(hidden: Set<WidgetId>) {
+  try {
+    localStorage.setItem(HIDDEN_KEY, JSON.stringify([...hidden]));
+  } catch {
+    // ignore
   }
 }
 
@@ -397,12 +420,14 @@ function InfoCards() {
 
 interface ReorderPanelProps {
   order: WidgetId[];
-  onSave: (next: WidgetId[]) => void;
+  hidden: Set<WidgetId>;
+  onSave: (next: WidgetId[], hidden: Set<WidgetId>) => void;
   onCancel: () => void;
 }
 
-function ReorderPanel({ order, onSave, onCancel }: ReorderPanelProps) {
+function ReorderPanel({ order, hidden, onSave, onCancel }: ReorderPanelProps) {
   const [draft, setDraft] = useState<WidgetId[]>(order);
+  const [draftHidden, setDraftHidden] = useState<Set<WidgetId>>(new Set(hidden));
   const dragIndex = useRef<number | null>(null);
 
   const handleDragStart = (i: number) => {
@@ -423,20 +448,29 @@ function ReorderPanel({ order, onSave, onCancel }: ReorderPanelProps) {
     dragIndex.current = null;
   };
 
+  const toggleHidden = (id: WidgetId) => {
+    setDraftHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
   return (
     <Card>
       <CardHeader className="pb-2">
         <CardTitle className="flex items-center justify-between text-sm">
           <span className="flex items-center gap-1.5">
             <Settings2 className="w-3.5 h-3.5 text-muted-foreground" />
-            Reorder Widgets
+            Layout &amp; Visibility
           </span>
           <div className="flex items-center gap-1.5">
             <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={onCancel}>
               <X className="w-3.5 h-3.5" />
               Cancel
             </Button>
-            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => onSave(draft)}>
+            <Button size="sm" className="h-7 text-xs gap-1" onClick={() => onSave(draft, draftHidden)}>
               <Check className="w-3.5 h-3.5" />
               Save
             </Button>
@@ -444,20 +478,43 @@ function ReorderPanel({ order, onSave, onCancel }: ReorderPanelProps) {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        <p className="text-[11px] text-muted-foreground mb-2">
+          Drag to reorder · click eye to show/hide
+        </p>
         <ul className="space-y-1.5">
-          {draft.map((id, i) => (
-            <li
-              key={id}
-              draggable
-              onDragStart={() => handleDragStart(i)}
-              onDragOver={(e) => handleDragOver(e, i)}
-              onDrop={handleDrop}
-              className="flex items-center gap-2 rounded-md border border-white/10 bg-white/5 px-3 py-2 text-sm cursor-grab active:cursor-grabbing select-none"
-            >
-              <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
-              <span>{WIDGET_LABELS[id]}</span>
-            </li>
-          ))}
+          {draft.map((id, i) => {
+            const isHidden = draftHidden.has(id);
+            return (
+              <li
+                key={id}
+                draggable
+                onDragStart={() => handleDragStart(i)}
+                onDragOver={(e) => handleDragOver(e, i)}
+                onDrop={handleDrop}
+                className={cn(
+                  "flex items-center gap-2 rounded-md border px-3 py-2 text-sm cursor-grab active:cursor-grabbing select-none transition-opacity",
+                  isHidden
+                    ? "border-border/40 bg-muted/20 opacity-50"
+                    : "border-white/10 bg-white/5"
+                )}
+              >
+                <GripVertical className="w-4 h-4 text-muted-foreground shrink-0" />
+                <span className={cn("flex-1", isHidden && "line-through text-muted-foreground")}>
+                  {WIDGET_LABELS[id]}
+                </span>
+                <button
+                  className="ml-auto text-muted-foreground hover:text-foreground transition-colors"
+                  onClick={(e) => { e.stopPropagation(); toggleHidden(id); }}
+                  title={isHidden ? "Show widget" : "Hide widget"}
+                >
+                  {isHidden
+                    ? <EyeOff className="w-3.5 h-3.5" />
+                    : <Eye className="w-3.5 h-3.5" />
+                  }
+                </button>
+              </li>
+            );
+          })}
         </ul>
       </CardContent>
     </Card>
@@ -505,18 +562,22 @@ export default function DashboardPage() {
 
   const servicesUpPct = useServicesUpPct();
 
-  // Widget ordering state
+  // Widget ordering + visibility state
   const [widgetOrder, setWidgetOrder] = useState<WidgetId[]>(loadOrder);
+  const [hiddenWidgets, setHiddenWidgets] = useState<Set<WidgetId>>(loadHidden);
   const [editMode, setEditMode] = useState(false);
 
-  // Keep order in sync with localStorage on first load
+  // Keep state in sync with localStorage on first load
   useEffect(() => {
     setWidgetOrder(loadOrder());
+    setHiddenWidgets(loadHidden());
   }, []);
 
-  const handleSaveOrder = (next: WidgetId[]) => {
+  const handleSaveOrder = (next: WidgetId[], nextHidden: Set<WidgetId>) => {
     saveOrder(next);
+    saveHidden(nextHidden);
     setWidgetOrder(next);
+    setHiddenWidgets(nextHidden);
     setEditMode(false);
   };
 
@@ -627,10 +688,11 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* Edit mode: show reorder panel */}
+      {/* Edit mode: show reorder / visibility panel */}
       {editMode && (
         <ReorderPanel
           order={widgetOrder}
+          hidden={hiddenWidgets}
           onSave={handleSaveOrder}
           onCancel={() => setEditMode(false)}
         />
@@ -639,13 +701,15 @@ export default function DashboardPage() {
       {/* Info cards always shown (uptime, load, network) */}
       <InfoCards />
 
-      {/* Widgets in user-defined order */}
+      {/* Widgets in user-defined order, respecting hidden state */}
       <div className="space-y-6">
-        {widgetOrder.map((id) => (
-          <div key={id}>
-            {widgetMap[id]}
-          </div>
-        ))}
+        {widgetOrder
+          .filter((id) => !hiddenWidgets.has(id))
+          .map((id) => (
+            <div key={id}>
+              {widgetMap[id]}
+            </div>
+          ))}
       </div>
     </div>
   );
