@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation, Link } from "react-router-dom";
 import {
   Bluetooth, Box, ChevronLeft, ChevronRight,
   Cpu, FileText, FolderOpen, GitBranch,
@@ -209,15 +209,31 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       {/* User + logout */}
       <div className="border-t border-border/70 p-2 shrink-0">
         {!collapsed && user && (
-          <div className="flex items-center gap-2.5 px-2 py-1.5 mb-1">
-            <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[11px] font-bold text-foreground/80 uppercase shrink-0">
+          <Link
+            to="/account"
+            className="flex items-center gap-2.5 px-2 py-1.5 mb-1 rounded-lg hover:bg-secondary/60 transition-colors group"
+            title="My account"
+          >
+            <div className="w-7 h-7 rounded-full bg-primary/15 border border-primary/20 flex items-center justify-center text-[11px] font-bold text-primary uppercase shrink-0 group-hover:border-primary/40 transition-colors">
               {user.username.slice(0, 2)}
             </div>
             <div className="min-w-0">
               <p className="text-xs font-medium text-foreground truncate leading-tight">{user.username}</p>
               <p className="text-[10px] text-muted-foreground capitalize leading-tight">{user.role}</p>
             </div>
-          </div>
+          </Link>
+        )}
+        {collapsed && user && (
+          <Link
+            to="/account"
+            className="sidebar-item justify-center px-0 mx-2 mb-1"
+            data-tooltip="My account"
+            title="My account"
+          >
+            <div className="w-6 h-6 rounded-full bg-primary/15 border border-primary/20 flex items-center justify-center text-[10px] font-bold text-primary uppercase">
+              {user.username.slice(0, 2)}
+            </div>
+          </Link>
         )}
         <button
           onClick={handleLogout}

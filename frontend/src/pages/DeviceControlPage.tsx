@@ -126,7 +126,7 @@ function mergeDevices(policies: DevicePolicy[], clients: ApClient[]): MergedDevi
 
 function mbps(kbps: number): string {
   if (kbps <= 0) return "";
-  return kbps >= 1000 ? String(kbps / 1000) : String(kbps / 1000);
+  return String(kbps / 1000);
 }
 
 // ─── Device Row ───────────────────────────────────────────────────────────────

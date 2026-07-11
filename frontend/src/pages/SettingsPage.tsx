@@ -158,6 +158,7 @@ const accents = [
 
 export default function SettingsPage() {
   const { theme, accentColor, density, setTheme, setAccentColor, setDensity } = useTheme();
+  const { confirm: confirmAct, dialog: confirmDlg } = useConfirm();
 
   const { data: settings, isLoading, refetch } = useQuery({
     queryKey: ["settings"],
@@ -218,6 +219,7 @@ export default function SettingsPage() {
 
   return (
     <div className="p-6 space-y-6 max-w-3xl">
+      {confirmDlg}
       {/* ── Appearance ─────────────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
@@ -402,7 +404,15 @@ export default function SettingsPage() {
               variant="outline"
               size="sm"
               className="border-warning text-warning hover:bg-warning/10"
-              onClick={() => confirm("Reboot the system?") && rebootM.mutate()}
+              onClick={async () => {
+                const ok = await confirmAct({
+                  title: "Reboot the system?",
+                  description: "The Pi will restart. The dashboard will reconnect automatically in ~30 seconds.",
+                  confirmLabel: "Reboot",
+                  severity: "danger",
+                });
+                if (ok) rebootM.mutate();
+              }}
               loading={rebootM.isPending}
             >
               <RefreshCw className="w-3.5 h-3.5 mr-1" /> Reboot
@@ -419,11 +429,15 @@ export default function SettingsPage() {
             <Button
               variant="destructive"
               size="sm"
-              onClick={() =>
-                confirm(
-                  "Shut down the system? You will lose remote access."
-                ) && shutdownM.mutate()
-              }
+              onClick={async () => {
+                const ok = await confirmAct({
+                  title: "Shut down the system?",
+                  description: "You will lose all remote access. A physical power cycle is required to turn it back on.",
+                  confirmLabel: "Shut down",
+                  severity: "critical",
+                });
+                if (ok) shutdownM.mutate();
+              }}
               loading={shutdownM.isPending}
             >
               Shutdown
