@@ -145,6 +145,12 @@ if nginx -t 2>>"${LOG_FILE}"; then
 else
     warn "nginx config test failed — left running on previous config"
 fi
+# Re-apply internet sharing rules (idempotent — safe to run while running)
+if [[ -f "${REPO_DIR}/scripts/internet-sharing.sh" ]]; then
+    bash "${REPO_DIR}/scripts/internet-sharing.sh" >> "${LOG_FILE}" 2>&1 \
+        && ok "Internet sharing rules refreshed" \
+        || warn "Internet sharing re-apply skipped (no upstream route yet)"
+fi
 
 # ── 7. Health check ──────────────────────────────────────────────────────────
 for _ in $(seq 1 10); do

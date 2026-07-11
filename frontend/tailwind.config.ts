@@ -95,7 +95,8 @@ const config: Config = {
         "slide-in": "slide-in-from-left 0.3s ease-out",
       },
       fontFamily: {
-        mono: ["JetBrains Mono", "Fira Code", "ui-monospace", "monospace"],
+        sans: ["ui-sans-serif", "system-ui", "-apple-system", "BlinkMacSystemFont", "Segoe UI", "Roboto", "Helvetica Neue", "Arial", "sans-serif"],
+        mono: ["ui-monospace", "SFMono-Regular", "Menlo", "Monaco", "Consolas", "Liberation Mono", "Courier New", "monospace"],
       },
     },
   },

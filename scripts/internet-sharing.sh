@@ -81,9 +81,18 @@ iptables -I FORWARD 1 -i "${AP_INTERFACE}" -o "${UPSTREAM}" -j ACCEPT
 iptables -D FORWARD -i "${UPSTREAM}" -o "${AP_INTERFACE}" -m state --state RELATED,ESTABLISHED -j ACCEPT 2>/dev/null || true
 iptables -I FORWARD 2 -i "${UPSTREAM}" -o "${AP_INTERFACE}" -m state --state RELATED,ESTABLISHED -j ACCEPT
 
-# ── 5. Make AP clients use a working DNS (dnsmasq already listens on AP IP) ───
-# Nothing to do here — dnsmasq handles DHCP+DNS for AP clients; upstream DNS
-# is reached through the same NAT path.
+# ── 5. Allow AP clients to reach the Pi's own services (nginx, dnsmasq) ──────
+# Without explicit INPUT ACCEPT rules the kernel default is ACCEPT, but if
+# fail2ban or another tool has tightened the INPUT chain these rules guarantee
+# access from AP clients to the dashboard (80/443) and DNS (53).
+for port in 80 443; do
+    iptables -D INPUT -i "${AP_INTERFACE}" -p tcp --dport "${port}" -j ACCEPT 2>/dev/null || true
+    iptables -I INPUT 1 -i "${AP_INTERFACE}" -p tcp --dport "${port}" -j ACCEPT
+done
+iptables -D INPUT -i "${AP_INTERFACE}" -p udp --dport 53 -j ACCEPT 2>/dev/null || true
+iptables -I INPUT 1 -i "${AP_INTERFACE}" -p udp --dport 53 -j ACCEPT
+iptables -D INPUT -i "${AP_INTERFACE}" -p tcp --dport 53 -j ACCEPT 2>/dev/null || true
+iptables -I INPUT 1 -i "${AP_INTERFACE}" -p tcp --dport 53 -j ACCEPT
 
 # ── 6. Persist rules across reboots (best effort) ────────────────────────────
 mkdir -p /etc/iptables

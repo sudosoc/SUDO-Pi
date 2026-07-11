@@ -8,8 +8,8 @@ from pathlib import Path
 
 from loguru import logger
 
-CERT_PATH = Path("/etc/nginx/ssl/sudo-pi.crt")
-KEY_PATH = Path("/etc/nginx/ssl/sudo-pi.key")
+CERT_PATH = Path("/etc/sudo-pi/certs/server.crt")
+KEY_PATH = Path("/etc/sudo-pi/certs/server.key")
 NGINX_RELOAD_CMD = ["sudo", "nginx", "-s", "reload"]
 
 
