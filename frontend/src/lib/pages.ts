@@ -51,10 +51,23 @@ export const GATED_PAGES: PageDef[] = [
   { to: "/users", label: "Dashboard Users", group: "Admin" },
   { to: "/system-users", label: "Pi Users", group: "Admin" },
   { to: "/security", label: "Security", group: "Admin" },
+  { to: "/intrusion-detection", label: "Intrusion Detection", group: "Admin" },
+  { to: "/audit-log", label: "Audit Log", group: "Admin" },
   { to: "/tls", label: "TLS Certs", group: "Admin" },
   { to: "/backup", label: "Backup", group: "Admin" },
   { to: "/updates", label: "Updates", group: "Admin" },
   { to: "/settings", label: "Settings", group: "Admin" },
+  // Network extras
+  { to: "/captive-portal", label: "Captive Portal", group: "Network" },
+  { to: "/network-topology", label: "Network Topology", group: "Network" },
+  { to: "/wake-on-lan", label: "Wake-on-LAN", group: "Network" },
+  { to: "/reverse-proxy", label: "Reverse Proxy", group: "Network" },
+  // Hardware extras
+  { to: "/smart-disk", label: "SMART Disks", group: "Hardware" },
+  { to: "/ups", label: "UPS Monitor", group: "Hardware" },
+  // Tools extras
+  { to: "/scripts", label: "Script Runner", group: "Tools" },
+  { to: "/snapshots", label: "Snapshots", group: "Tools" },
 ];
 
 /**

@@ -43,7 +43,17 @@ const SystemUsersPage     = lazy(() => import("@/pages/SystemUsersPage"));
 const ServicesPage        = lazy(() => import("@/pages/ServicesPage"));
 const DnsPage             = lazy(() => import("@/pages/DnsPage"));
 const AutomationsPage     = lazy(() => import("@/pages/AutomationsPage"));
-const AccountPage         = lazy(() => import("@/pages/AccountPage"));
+const AccountPage             = lazy(() => import("@/pages/AccountPage"));
+const CaptivePortalPage       = lazy(() => import("@/pages/CaptivePortalPage"));
+const AuditLogPage            = lazy(() => import("@/pages/AuditLogPage"));
+const ReverseProxyPage        = lazy(() => import("@/pages/ReverseProxyPage"));
+const IntrusionDetectionPage  = lazy(() => import("@/pages/IntrusionDetectionPage"));
+const NetworkTopologyPage     = lazy(() => import("@/pages/NetworkTopologyPage"));
+const WakeOnLanPage           = lazy(() => import("@/pages/WakeOnLanPage"));
+const SmartDiskPage           = lazy(() => import("@/pages/SmartDiskPage"));
+const UpsPage                 = lazy(() => import("@/pages/UpsPage"));
+const SystemSnapshotsPage     = lazy(() => import("@/pages/SystemSnapshotsPage"));
+const ScriptRunnerPage        = lazy(() => import("@/pages/ScriptRunnerPage"));
 
 function ProtectedLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -105,7 +115,17 @@ export default function App() {
           <Route path="/services"       element={<ServicesPage />} />
           <Route path="/dns"            element={<DnsPage />} />
           <Route path="/automations"    element={<AutomationsPage />} />
-          <Route path="/account"        element={<AccountPage />} />
+          <Route path="/account"             element={<AccountPage />} />
+          <Route path="/captive-portal"    element={<CaptivePortalPage />} />
+          <Route path="/audit-log"         element={<AuditLogPage />} />
+          <Route path="/reverse-proxy"     element={<ReverseProxyPage />} />
+          <Route path="/intrusion-detection" element={<IntrusionDetectionPage />} />
+          <Route path="/network-topology"  element={<NetworkTopologyPage />} />
+          <Route path="/wake-on-lan"       element={<WakeOnLanPage />} />
+          <Route path="/smart-disk"        element={<SmartDiskPage />} />
+          <Route path="/ups"               element={<UpsPage />} />
+          <Route path="/snapshots"         element={<SystemSnapshotsPage />} />
+          <Route path="/scripts"           element={<ScriptRunnerPage />} />
             <Route element={<AdminGuard />}>
               <Route path="/users"        element={<UsersPage />} />
               <Route path="/system-users" element={<SystemUsersPage />} />

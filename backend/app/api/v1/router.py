@@ -45,6 +45,12 @@ from app.api.v1 import (
     system_users,
     network_scanner,
     tls,
+    reverse_proxy,
+    wol,
+    smart,
+    ups,
+    snapshots,
+    scripts,
 )
 
 api_router = APIRouter(prefix="/api/v1")
@@ -91,3 +97,9 @@ api_router.include_router(remote_desktop.router)
 api_router.include_router(system_users.router)
 api_router.include_router(network_scanner.router)
 api_router.include_router(tls.router)
+api_router.include_router(reverse_proxy.router)
+api_router.include_router(wol.router)
+api_router.include_router(smart.router)
+api_router.include_router(ups.router)
+api_router.include_router(snapshots.router)
+api_router.include_router(scripts.router)

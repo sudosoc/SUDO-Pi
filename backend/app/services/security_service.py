@@ -151,6 +151,75 @@ async def get_firewall_rules() -> dict:
     return {"enabled": True, "rules": rules}
 
 
+async def get_ssh_attempts() -> dict:
+    from datetime import datetime, timedelta, timezone
+
+    code, out, _ = await _run(
+        ["sudo", "grep", "-hE", "sshd.*Failed password|sshd.*Invalid user|sshd.*Connection closed.*preauth",
+         "/var/log/auth.log", "/var/log/auth.log.1"],
+    )
+
+    lines = out.splitlines() if code == 0 else []
+    now = datetime.now(timezone.utc)
+
+    ip_counts: dict[str, int] = {}
+    user_counts: dict[str, int] = {}
+    # heatmap[day_offset][hour] = count (day_offset 0 = today)
+    heatmap: list[list[int]] = [[0] * 24 for _ in range(7)]
+    recent: list[dict] = []
+
+    ip_re = re.compile(r"from (\d+\.\d+\.\d+\.\d+)")
+    user_re = re.compile(r"(?:for invalid user|for) (\S+) from")
+
+    for line in lines:
+        try:
+            # Parse syslog timestamp (no year): "Jan 15 14:23:01"
+            parts = line.split()
+            if len(parts) < 3:
+                continue
+            ts_str = f"{parts[0]} {parts[1]} {parts[2]}"
+            ts = datetime.strptime(ts_str, "%b %d %H:%M:%S").replace(
+                year=now.year, tzinfo=timezone.utc
+            )
+            # Handle year wrap-around (Jan log entries read in Dec)
+            if ts > now + timedelta(hours=1):
+                ts = ts.replace(year=now.year - 1)
+
+            day_offset = (now.date() - ts.date()).days
+            if 0 <= day_offset < 7:
+                heatmap[day_offset][ts.hour] += 1
+
+            ip_m = ip_re.search(line)
+            ip = ip_m.group(1) if ip_m else "unknown"
+            user_m = user_re.search(line)
+            user = user_m.group(1) if user_m else "unknown"
+
+            ip_counts[ip] = ip_counts.get(ip, 0) + 1
+            user_counts[user] = user_counts.get(user, 0) + 1
+
+            if len(recent) < 100:
+                recent.append({
+                    "timestamp": ts.isoformat(),
+                    "ip": ip,
+                    "user": user,
+                    "message": " ".join(parts[3:])[:200],
+                })
+        except Exception:
+            continue
+
+    top_ips = sorted(ip_counts.items(), key=lambda x: x[1], reverse=True)[:20]
+    top_users = sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:20]
+
+    return {
+        "total_attempts": sum(ip_counts.values()),
+        "unique_ips": len(ip_counts),
+        "heatmap": heatmap,
+        "top_ips": [{"ip": ip, "count": c} for ip, c in top_ips],
+        "top_users": [{"user": u, "count": c} for u, c in top_users],
+        "recent": recent[:50],
+    }
+
+
 def _is_safe_jail_name(name: str) -> bool:
     return bool(re.match(r"^[a-z0-9][a-z0-9_\-]{0,63}$", name))
 

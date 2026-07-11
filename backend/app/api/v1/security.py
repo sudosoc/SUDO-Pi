@@ -77,3 +77,8 @@ async def get_audit_log(
 @router.get("/firewall")
 async def get_firewall_rules(_: AdminUser = None):
     return await security_service.get_firewall_rules()
+
+
+@router.get("/ssh-attempts")
+async def get_ssh_attempts(_: AdminUser = None):
+    return await security_service.get_ssh_attempts()
