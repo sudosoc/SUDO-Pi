@@ -1,7 +1,7 @@
 import { Suspense, useState, useEffect, useRef } from "react";
 import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
-import { Header } from "./Header";
+import { TabBar } from "./TabBar";
 import { StatusBar } from "./StatusBar";
 import { GlobalLoadingBar } from "./GlobalLoadingBar";
 import { FloatingTerminal } from "./FloatingTerminal";
@@ -22,64 +22,6 @@ function PageLoader() {
   );
 }
 
-const ROUTE_TITLES: Record<string, string> = {
-  "/":                    "Dashboard",
-  "/system":              "System Monitor",
-  "/processes":           "Process Manager",
-  "/terminal":            "Terminal",
-  "/files":               "File Manager",
-  "/network":             "Network Manager",
-  "/packages":            "Package Manager",
-  "/docker":              "Docker Manager",
-  "/bluetooth":           "Bluetooth",
-  "/gpio":                "GPIO",
-  "/devices":             "Connected Devices",
-  "/device-control":      "Device Control",
-  "/logs":                "Logs",
-  "/vpn":                 "VPN Manager",
-  "/firewall":            "Firewall Manager",
-  "/cron":                "Cron Job Manager",
-  "/ssh":                 "SSH Manager",
-  "/metrics":             "Performance Metrics",
-  "/speedtest":           "Speed Test",
-  "/alerts":              "Alert System",
-  "/automations":         "Automations",
-  "/storage":             "Storage Manager",
-  "/display":             "Display Manager",
-  "/users":               "Users",
-  "/system-users":        "Pi System Users",
-  "/security":            "Security",
-  "/settings":            "Settings",
-  "/network-traffic":     "Traffic Monitor",
-  "/diagnostics":         "System Diagnostics",
-  "/network-scanner":     "Network Scanner",
-  "/network-topology":    "Network Topology",
-  "/tls":                 "TLS Certificates",
-  "/account":             "My Account",
-  "/backup":              "Backup & Restore",
-  "/updates":             "OS Updates",
-  "/services":            "Services",
-  "/dns":                 "DNS & DHCP",
-  "/captive-portal":      "Captive Portal",
-  "/reverse-proxy":       "Reverse Proxy",
-  "/wake-on-lan":         "Wake-on-LAN",
-  "/smart-disk":          "SMART Disk Health",
-  "/ups":                 "UPS Monitor",
-  "/snapshots":           "System Snapshots",
-  "/audit-log":           "Audit Log",
-  "/intrusion-detection": "Intrusion Detection",
-  "/app-store":           "App Store",
-  "/remote-desktop":      "Remote Desktop",
-};
-
-function getTitle(pathname: string): string {
-  for (const [path, title] of Object.entries(ROUTE_TITLES)) {
-    if (path !== "/" && pathname.startsWith(path)) return title;
-  }
-  if (pathname === "/") return "Dashboard";
-  return "SUDO-Pi";
-}
-
 // Chord navigation: G+key → route
 const G_NAV: Record<string, string> = {
   d: "/",
@@ -98,7 +40,6 @@ export function MainLayout() {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
-  const title = getTitle(location.pathname);
   const { stats, wsConnected } = useSystemStore();
 
   // Track whether we've ever connected so we can show a "lost" banner
@@ -222,7 +163,7 @@ export function MainLayout() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
-          <Header title={title} onOpenPalette={() => setPaletteOpen(true)} />
+          <TabBar onOpenPalette={() => setPaletteOpen(true)} />
           <main className="flex-1 overflow-auto">
             <div key={location.pathname} className="page-transition h-full">
               <ErrorBoundary>
