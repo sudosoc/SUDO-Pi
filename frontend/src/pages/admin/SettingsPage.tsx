@@ -30,6 +30,8 @@ function SoftwareUpdateCard() {
   const [countdown, setCountdown] = useState<number | null>(null);
   const logRef = useRef<HTMLPreElement>(null);
   const didSucceedRef = useRef(false);
+  // True only if "running" was seen in THIS session — prevents stale success from triggering reload on page load
+  const wasRunningRef = useRef(false);
 
   const { data } = useQuery<UpdateStatus>({
     queryKey: ["software-update-status"],
@@ -44,11 +46,12 @@ function SoftwareUpdateCard() {
   useEffect(() => {
     if (data?.status === "running") {
       setPolling(true);
+      wasRunningRef.current = true;
       didSucceedRef.current = false;
     } else if (data?.status === "success") {
       const t = setTimeout(() => setPolling(false), 2500);
-      // Start auto-reload countdown only once per update run
-      if (!didSucceedRef.current) {
+      // Only count down if this session actually triggered an update
+      if (!didSucceedRef.current && wasRunningRef.current) {
         didSucceedRef.current = true;
         setCountdown(5);
       }

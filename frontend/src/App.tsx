@@ -5,55 +5,67 @@ import { MainLayout } from "@/components/layout/MainLayout";
 import LoginPage from "@/pages/LoginPage";
 import { ThemeProvider } from "@/contexts/ThemeContext";
 
-const DashboardPage   = lazy(() => import("@/pages/DashboardPage"));
-const SystemPage      = lazy(() => import("@/pages/SystemPage"));
-const TerminalPage    = lazy(() => import("@/pages/TerminalPage"));
-const FilesPage       = lazy(() => import("@/pages/FilesPage"));
-const NetworkPage     = lazy(() => import("@/pages/NetworkPage"));
-const PackagesPage    = lazy(() => import("@/pages/PackagesPage"));
-const DockerPage      = lazy(() => import("@/pages/DockerPage"));
-const BluetoothPage   = lazy(() => import("@/pages/BluetoothPage"));
-const GpioPage        = lazy(() => import("@/pages/GpioPage"));
-const UsersPage       = lazy(() => import("@/pages/UsersPage"));
-const SecurityPage    = lazy(() => import("@/pages/SecurityPage"));
-const SettingsPage    = lazy(() => import("@/pages/SettingsPage"));
-const DevicesPage     = lazy(() => import("@/pages/DevicesPage"));
-const LogsPage        = lazy(() => import("@/pages/LogsPage"));
-const VpnPage         = lazy(() => import("@/pages/VpnPage"));
-const FirewallPage    = lazy(() => import("@/pages/FirewallPage"));
-const CronPage        = lazy(() => import("@/pages/CronPage"));
-const SshPage         = lazy(() => import("@/pages/SshPage"));
-const MetricsPage     = lazy(() => import("@/pages/MetricsPage"));
-const AlertsPage      = lazy(() => import("@/pages/AlertsPage"));
-const StoragePage     = lazy(() => import("@/pages/StoragePage"));
-const DisplayPage     = lazy(() => import("@/pages/DisplayPage"));
-const ProcessPage     = lazy(() => import("@/pages/ProcessPage"));
-const SpeedTestPage       = lazy(() => import("@/pages/SpeedTestPage"));
-const NetworkTrafficPage  = lazy(() => import("@/pages/NetworkTrafficPage"));
-const DockerComposePage   = lazy(() => import("@/pages/DockerComposePage"));
-const AppStorePage        = lazy(() => import("@/pages/AppStorePage"));
-const BackupPage          = lazy(() => import("@/pages/BackupPage"));
-const DiagnosticsPage     = lazy(() => import("@/pages/DiagnosticsPage"));
-const NetworkScannerPage  = lazy(() => import("@/pages/NetworkScannerPage"));
-const TlsPage             = lazy(() => import("@/pages/TlsPage"));
-const UpdatesPage         = lazy(() => import("@/pages/UpdatesPage"));
-const DeviceControlPage   = lazy(() => import("@/pages/DeviceControlPage"));
-const RemoteDesktopPage   = lazy(() => import("@/pages/RemoteDesktopPage"));
-const SystemUsersPage     = lazy(() => import("@/pages/SystemUsersPage"));
-const ServicesPage        = lazy(() => import("@/pages/ServicesPage"));
-const DnsPage             = lazy(() => import("@/pages/DnsPage"));
-const AutomationsPage     = lazy(() => import("@/pages/AutomationsPage"));
-const AccountPage             = lazy(() => import("@/pages/AccountPage"));
-const CaptivePortalPage       = lazy(() => import("@/pages/CaptivePortalPage"));
-const AuditLogPage            = lazy(() => import("@/pages/AuditLogPage"));
-const ReverseProxyPage        = lazy(() => import("@/pages/ReverseProxyPage"));
-const IntrusionDetectionPage  = lazy(() => import("@/pages/IntrusionDetectionPage"));
-const NetworkTopologyPage     = lazy(() => import("@/pages/NetworkTopologyPage"));
-const WakeOnLanPage           = lazy(() => import("@/pages/WakeOnLanPage"));
-const SmartDiskPage           = lazy(() => import("@/pages/SmartDiskPage"));
-const UpsPage                 = lazy(() => import("@/pages/UpsPage"));
-const SystemSnapshotsPage     = lazy(() => import("@/pages/SystemSnapshotsPage"));
-const ScriptRunnerPage        = lazy(() => import("@/pages/ScriptRunnerPage"));
+// Dashboard (root)
+const DashboardPage = lazy(() => import("@/pages/DashboardPage"));
+
+// Monitor
+const SystemPage       = lazy(() => import("@/pages/monitor/SystemPage"));
+const MetricsPage      = lazy(() => import("@/pages/monitor/MetricsPage"));
+const ProcessPage      = lazy(() => import("@/pages/monitor/ProcessPage"));
+const LogsPage         = lazy(() => import("@/pages/monitor/LogsPage"));
+const AlertsPage       = lazy(() => import("@/pages/monitor/AlertsPage"));
+const AutomationsPage  = lazy(() => import("@/pages/monitor/AutomationsPage"));
+const DiagnosticsPage  = lazy(() => import("@/pages/monitor/DiagnosticsPage"));
+
+// Network
+const NetworkPage          = lazy(() => import("@/pages/network/NetworkPage"));
+const NetworkTrafficPage   = lazy(() => import("@/pages/network/NetworkTrafficPage"));
+const DevicesPage          = lazy(() => import("@/pages/network/DevicesPage"));
+const DeviceControlPage    = lazy(() => import("@/pages/network/DeviceControlPage"));
+const NetworkScannerPage   = lazy(() => import("@/pages/network/NetworkScannerPage"));
+const NetworkTopologyPage  = lazy(() => import("@/pages/network/NetworkTopologyPage"));
+const DnsPage              = lazy(() => import("@/pages/network/DnsPage"));
+const VpnPage              = lazy(() => import("@/pages/network/VpnPage"));
+const FirewallPage         = lazy(() => import("@/pages/network/FirewallPage"));
+const CaptivePortalPage    = lazy(() => import("@/pages/network/CaptivePortalPage"));
+const ReverseProxyPage     = lazy(() => import("@/pages/network/ReverseProxyPage"));
+const WakeOnLanPage        = lazy(() => import("@/pages/network/WakeOnLanPage"));
+const SpeedTestPage        = lazy(() => import("@/pages/network/SpeedTestPage"));
+const BluetoothPage        = lazy(() => import("@/pages/network/BluetoothPage"));
+
+// Containers & Apps
+const ServicesPage      = lazy(() => import("@/pages/containers/ServicesPage"));
+const DockerPage        = lazy(() => import("@/pages/containers/DockerPage"));
+const DockerComposePage = lazy(() => import("@/pages/containers/DockerComposePage"));
+const AppStorePage      = lazy(() => import("@/pages/containers/AppStorePage"));
+
+// Hardware
+const GpioPage          = lazy(() => import("@/pages/hardware/GpioPage"));
+const StoragePage       = lazy(() => import("@/pages/hardware/StoragePage"));
+const DisplayPage       = lazy(() => import("@/pages/hardware/DisplayPage"));
+const SmartDiskPage     = lazy(() => import("@/pages/hardware/SmartDiskPage"));
+const UpsPage           = lazy(() => import("@/pages/hardware/UpsPage"));
+const RemoteDesktopPage = lazy(() => import("@/pages/hardware/RemoteDesktopPage"));
+
+// Tools
+const TerminalPage        = lazy(() => import("@/pages/tools/TerminalPage"));
+const FilesPage           = lazy(() => import("@/pages/tools/FilesPage"));
+const PackagesPage        = lazy(() => import("@/pages/tools/PackagesPage"));
+const CronPage            = lazy(() => import("@/pages/tools/CronPage"));
+const SshPage             = lazy(() => import("@/pages/tools/SshPage"));
+const SystemSnapshotsPage = lazy(() => import("@/pages/tools/SystemSnapshotsPage"));
+
+// Admin
+const UsersPage             = lazy(() => import("@/pages/admin/UsersPage"));
+const SystemUsersPage       = lazy(() => import("@/pages/admin/SystemUsersPage"));
+const SecurityPage          = lazy(() => import("@/pages/admin/SecurityPage"));
+const IntrusionDetectionPage = lazy(() => import("@/pages/admin/IntrusionDetectionPage"));
+const AuditLogPage          = lazy(() => import("@/pages/admin/AuditLogPage"));
+const TlsPage               = lazy(() => import("@/pages/admin/TlsPage"));
+const BackupPage            = lazy(() => import("@/pages/admin/BackupPage"));
+const UpdatesPage           = lazy(() => import("@/pages/admin/UpdatesPage"));
+const SettingsPage          = lazy(() => import("@/pages/admin/SettingsPage"));
+const AccountPage           = lazy(() => import("@/pages/admin/AccountPage"));
 
 function ProtectedLayout() {
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -80,57 +92,70 @@ export default function App() {
             element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
           />
           <Route element={<ProtectedLayout />}>
+            {/* Dashboard */}
             <Route index element={<DashboardPage />} />
-            <Route path="/system"    element={<SystemPage />} />
-            <Route path="/terminal"  element={<TerminalPage />} />
-            <Route path="/files"     element={<FilesPage />} />
-            <Route path="/network"   element={<NetworkPage />} />
-            <Route path="/packages"  element={<PackagesPage />} />
-            <Route path="/docker"    element={<DockerPage />} />
-            <Route path="/bluetooth" element={<BluetoothPage />} />
-            <Route path="/gpio"      element={<GpioPage />} />
-            <Route path="/devices"   element={<DevicesPage />} />
-            <Route path="/logs"      element={<LogsPage />} />
-            <Route path="/settings"  element={<SettingsPage />} />
-            <Route path="/vpn"       element={<VpnPage />} />
-            <Route path="/firewall"  element={<FirewallPage />} />
-            <Route path="/cron"      element={<CronPage />} />
-            <Route path="/ssh"       element={<SshPage />} />
-            <Route path="/metrics"   element={<MetricsPage />} />
-            <Route path="/alerts"    element={<AlertsPage />} />
-            <Route path="/storage"    element={<StoragePage />} />
-            <Route path="/display"    element={<DisplayPage />} />
-            <Route path="/processes"  element={<ProcessPage />} />
-            <Route path="/speedtest"       element={<SpeedTestPage />} />
-            <Route path="/network-traffic" element={<NetworkTrafficPage />} />
+
+            {/* Monitor */}
+            <Route path="/system"      element={<SystemPage />} />
+            <Route path="/metrics"     element={<MetricsPage />} />
+            <Route path="/processes"   element={<ProcessPage />} />
+            <Route path="/logs"        element={<LogsPage />} />
+            <Route path="/alerts"      element={<AlertsPage />} />
+            <Route path="/automations" element={<AutomationsPage />} />
+            <Route path="/diagnostics" element={<DiagnosticsPage />} />
+
+            {/* Network */}
+            <Route path="/network"           element={<NetworkPage />} />
+            <Route path="/network-traffic"   element={<NetworkTrafficPage />} />
+            <Route path="/devices"           element={<DevicesPage />} />
+            <Route path="/device-control"    element={<DeviceControlPage />} />
+            <Route path="/network-scanner"   element={<NetworkScannerPage />} />
+            <Route path="/network-topology"  element={<NetworkTopologyPage />} />
+            <Route path="/dns"               element={<DnsPage />} />
+            <Route path="/vpn"               element={<VpnPage />} />
+            <Route path="/firewall"          element={<FirewallPage />} />
+            <Route path="/captive-portal"    element={<CaptivePortalPage />} />
+            <Route path="/reverse-proxy"     element={<ReverseProxyPage />} />
+            <Route path="/wake-on-lan"       element={<WakeOnLanPage />} />
+            <Route path="/speedtest"         element={<SpeedTestPage />} />
+            <Route path="/bluetooth"         element={<BluetoothPage />} />
+
+            {/* Containers */}
+            <Route path="/services"       element={<ServicesPage />} />
+            <Route path="/docker"         element={<DockerPage />} />
             <Route path="/docker/compose" element={<DockerComposePage />} />
             <Route path="/app-store"      element={<AppStorePage />} />
-            <Route path="/backup"         element={<BackupPage />} />
-          <Route path="/diagnostics"    element={<DiagnosticsPage />} />
-          <Route path="/network-scanner" element={<NetworkScannerPage />} />
-          <Route path="/tls"            element={<TlsPage />} />
-          <Route path="/updates"        element={<UpdatesPage />} />
-          <Route path="/device-control" element={<DeviceControlPage />} />
-          <Route path="/remote-desktop" element={<RemoteDesktopPage />} />
-          <Route path="/services"       element={<ServicesPage />} />
-          <Route path="/dns"            element={<DnsPage />} />
-          <Route path="/automations"    element={<AutomationsPage />} />
-          <Route path="/account"             element={<AccountPage />} />
-          <Route path="/captive-portal"    element={<CaptivePortalPage />} />
-          <Route path="/audit-log"         element={<AuditLogPage />} />
-          <Route path="/reverse-proxy"     element={<ReverseProxyPage />} />
-          <Route path="/intrusion-detection" element={<IntrusionDetectionPage />} />
-          <Route path="/network-topology"  element={<NetworkTopologyPage />} />
-          <Route path="/wake-on-lan"       element={<WakeOnLanPage />} />
-          <Route path="/smart-disk"        element={<SmartDiskPage />} />
-          <Route path="/ups"               element={<UpsPage />} />
-          <Route path="/snapshots"         element={<SystemSnapshotsPage />} />
-          <Route path="/scripts"           element={<ScriptRunnerPage />} />
+
+            {/* Hardware */}
+            <Route path="/gpio"          element={<GpioPage />} />
+            <Route path="/storage"       element={<StoragePage />} />
+            <Route path="/display"       element={<DisplayPage />} />
+            <Route path="/smart-disk"    element={<SmartDiskPage />} />
+            <Route path="/ups"           element={<UpsPage />} />
+            <Route path="/remote-desktop" element={<RemoteDesktopPage />} />
+
+            {/* Tools */}
+            <Route path="/terminal"  element={<TerminalPage />} />
+            <Route path="/files"     element={<FilesPage />} />
+            <Route path="/packages"  element={<PackagesPage />} />
+            <Route path="/cron"      element={<CronPage />} />
+            <Route path="/ssh"       element={<SshPage />} />
+            <Route path="/snapshots" element={<SystemSnapshotsPage />} />
+
+            {/* Admin */}
+            <Route path="/tls"                  element={<TlsPage />} />
+            <Route path="/backup"               element={<BackupPage />} />
+            <Route path="/updates"              element={<UpdatesPage />} />
+            <Route path="/settings"             element={<SettingsPage />} />
+            <Route path="/account"              element={<AccountPage />} />
+            <Route path="/audit-log"            element={<AuditLogPage />} />
+            <Route path="/intrusion-detection"  element={<IntrusionDetectionPage />} />
             <Route element={<AdminGuard />}>
               <Route path="/users"        element={<UsersPage />} />
               <Route path="/system-users" element={<SystemUsersPage />} />
               <Route path="/security"     element={<SecurityPage />} />
             </Route>
+
             <Route path="*" element={<Navigate to="/" replace />} />
           </Route>
         </Routes>

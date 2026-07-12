@@ -9,7 +9,7 @@ import {
   DownloadCloud, ShieldBan, LayoutGrid, Globe, Workflow, MonitorPlay, UserCog,
   Radar, LockKeyhole,
   DoorOpen, ScrollText, ArrowLeftRight, ShieldAlert, Share2,
-  Power, HeartPulse, BatteryCharging, Camera, Code2,
+  Power, HeartPulse, BatteryCharging, Camera,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessPage } from "@/lib/pages";
@@ -95,7 +95,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/packages", icon: Package,    label: "Packages",  roles: ["admin", "operator"] },
       { to: "/cron",      icon: Clock,       label: "Cron Jobs",    roles: ["admin", "operator"] },
       { to: "/ssh",       icon: KeyRound,    label: "SSH",          roles: ["admin"] },
-      { to: "/scripts",   icon: Code2,       label: "Script Runner", roles: ["admin", "operator"] },
       { to: "/snapshots", icon: Camera,      label: "Snapshots",    roles: ["admin"] },
     ],
   },

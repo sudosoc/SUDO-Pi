@@ -1,14 +1,18 @@
-import { Suspense, useState, useEffect } from "react";
-import { Outlet, useLocation } from "react-router-dom";
+import { Suspense, useState, useEffect, useRef } from "react";
+import { Outlet, useLocation, useNavigate } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 import { Header } from "./Header";
 import { StatusBar } from "./StatusBar";
 import { GlobalLoadingBar } from "./GlobalLoadingBar";
 import { FloatingTerminal } from "./FloatingTerminal";
 import { OnboardingWizard } from "./OnboardingWizard";
+import { ShortcutsModal } from "./ShortcutsModal";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useSystemMetrics } from "@/hooks/useSystemMetrics";
+import { useSystemStore } from "@/stores/systemStore";
+import { WifiOff, RefreshCw } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 function PageLoader() {
   return (
@@ -19,35 +23,53 @@ function PageLoader() {
 }
 
 const ROUTE_TITLES: Record<string, string> = {
-  "/":                 "Dashboard",
-  "/system":           "System Monitor",
-  "/processes":        "Process Manager",
-  "/terminal":         "Terminal",
-  "/files":            "File Manager",
-  "/network":          "Network Manager",
-  "/packages":         "Package Manager",
-  "/docker":           "Docker Manager",
-  "/bluetooth":        "Bluetooth",
-  "/gpio":             "GPIO",
-  "/devices":          "Connected Devices",
-  "/logs":             "Logs",
-  "/vpn":              "VPN Manager",
-  "/firewall":         "Firewall Manager",
-  "/cron":             "Cron Job Manager",
-  "/ssh":              "SSH Manager",
-  "/metrics":          "Performance Metrics",
-  "/speedtest":        "Speed Test",
-  "/alerts":           "Alert System",
-  "/storage":          "Storage Manager",
-  "/display":          "Display Manager",
-  "/users":            "Users",
-  "/security":         "Security",
-  "/settings":         "Settings",
-  "/network-traffic":  "Traffic Monitor",
-  "/diagnostics":      "System Diagnostics",
-  "/network-scanner":  "Network Scanner",
-  "/tls":              "TLS Certificate Manager",
-  "/account":          "My Account",
+  "/":                    "Dashboard",
+  "/system":              "System Monitor",
+  "/processes":           "Process Manager",
+  "/terminal":            "Terminal",
+  "/files":               "File Manager",
+  "/network":             "Network Manager",
+  "/packages":            "Package Manager",
+  "/docker":              "Docker Manager",
+  "/bluetooth":           "Bluetooth",
+  "/gpio":                "GPIO",
+  "/devices":             "Connected Devices",
+  "/device-control":      "Device Control",
+  "/logs":                "Logs",
+  "/vpn":                 "VPN Manager",
+  "/firewall":            "Firewall Manager",
+  "/cron":                "Cron Job Manager",
+  "/ssh":                 "SSH Manager",
+  "/metrics":             "Performance Metrics",
+  "/speedtest":           "Speed Test",
+  "/alerts":              "Alert System",
+  "/automations":         "Automations",
+  "/storage":             "Storage Manager",
+  "/display":             "Display Manager",
+  "/users":               "Users",
+  "/system-users":        "Pi System Users",
+  "/security":            "Security",
+  "/settings":            "Settings",
+  "/network-traffic":     "Traffic Monitor",
+  "/diagnostics":         "System Diagnostics",
+  "/network-scanner":     "Network Scanner",
+  "/network-topology":    "Network Topology",
+  "/tls":                 "TLS Certificates",
+  "/account":             "My Account",
+  "/backup":              "Backup & Restore",
+  "/updates":             "OS Updates",
+  "/services":            "Services",
+  "/dns":                 "DNS & DHCP",
+  "/captive-portal":      "Captive Portal",
+  "/reverse-proxy":       "Reverse Proxy",
+  "/wake-on-lan":         "Wake-on-LAN",
+  "/smart-disk":          "SMART Disk Health",
+  "/ups":                 "UPS Monitor",
+  "/snapshots":           "System Snapshots",
+  "/audit-log":           "Audit Log",
+  "/intrusion-detection": "Intrusion Detection",
+  "/app-store":           "App Store",
+  "/remote-desktop":      "Remote Desktop",
 };
 
 function getTitle(pathname: string): string {
@@ -58,11 +80,30 @@ function getTitle(pathname: string): string {
   return "SUDO-Pi";
 }
 
+// Chord navigation: G+key → route
+const G_NAV: Record<string, string> = {
+  d: "/",
+  n: "/network",
+  t: "/terminal",
+  s: "/settings",
+  l: "/logs",
+  m: "/metrics",
+  f: "/files",
+  b: "/backup",
+};
+
 export function MainLayout() {
   const location = useLocation();
+  const navigate = useNavigate();
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const title = getTitle(location.pathname);
+  const { stats, wsConnected } = useSystemStore();
+
+  // Track whether we've ever connected so we can show a "lost" banner
+  const hadConnectionRef = useRef(false);
+  const [showOfflineBanner, setShowOfflineBanner] = useState(false);
 
   useSystemMetrics();
 
@@ -71,17 +112,77 @@ export function MainLayout() {
     if (stored !== null) setSidebarCollapsed(stored === "true");
   }, []);
 
-  // Global Cmd+K / Ctrl+K shortcut
+  // ── Gift 1: Live CPU/Temp in browser title ──────────────────────────────────
   useEffect(() => {
+    if (!stats) return;
+    const cpu = Math.round(stats.cpu.percent);
+    const temp = stats.temperature?.cpu ? ` · ${Math.round(stats.temperature.cpu)}°C` : "";
+    document.title = `SUDO-Pi | ${cpu}% CPU${temp}`;
+    return () => { document.title = "SUDO-Pi"; };
+  }, [stats]);
+
+  // ── Gift 3: Connection lost banner ──────────────────────────────────────────
+  useEffect(() => {
+    if (wsConnected) {
+      hadConnectionRef.current = true;
+      setShowOfflineBanner(false);
+    } else if (hadConnectionRef.current) {
+      // Only show banner if we previously had a connection (not on initial load)
+      const t = setTimeout(() => setShowOfflineBanner(true), 3000);
+      return () => clearTimeout(t);
+    }
+  }, [wsConnected]);
+
+  // ── Keyboard shortcuts ──────────────────────────────────────────────────────
+  useEffect(() => {
+    let gPressed = false;
+    let gTimer: ReturnType<typeof setTimeout> | null = null;
+
     const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const inInput = ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) || target.isContentEditable;
+
+      // Ctrl+K — command palette
       if ((e.metaKey || e.ctrlKey) && e.key === "k") {
         e.preventDefault();
-        setPaletteOpen((prev) => !prev);
+        setPaletteOpen((p) => !p);
+        return;
       }
+
+      if (inInput) return;
+
+      // ? — shortcuts modal
+      if (e.key === "?" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setShortcutsOpen((p) => !p);
+        return;
+      }
+
+      // G chord navigation
+      if (e.key === "g" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        gPressed = true;
+        if (gTimer) clearTimeout(gTimer);
+        gTimer = setTimeout(() => { gPressed = false; }, 1000);
+        return;
+      }
+
+      if (gPressed && G_NAV[e.key.toLowerCase()]) {
+        e.preventDefault();
+        gPressed = false;
+        if (gTimer) clearTimeout(gTimer);
+        navigate(G_NAV[e.key.toLowerCase()]);
+        return;
+      }
+
+      gPressed = false;
     };
+
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, []);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      if (gTimer) clearTimeout(gTimer);
+    };
+  }, [navigate]);
 
   const toggleSidebar = () => {
     setSidebarCollapsed((prev) => {
@@ -93,6 +194,31 @@ export function MainLayout() {
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-background">
       <GlobalLoadingBar />
+
+      {/* Gift 3: Connection lost banner */}
+      {showOfflineBanner && (
+        <div className={cn(
+          "shrink-0 flex items-center justify-between gap-3 px-4 py-2",
+          "bg-warning/10 border-b border-warning/30 text-warning text-xs",
+          "animate-in slide-in-from-top-1 duration-300",
+        )}>
+          <div className="flex items-center gap-2">
+            <WifiOff className="w-3.5 h-3.5 shrink-0" />
+            <span className="font-medium">Live connection lost — data may be stale.</span>
+            <span className="text-warning/60">Reconnecting automatically…</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <RefreshCw className="w-3 h-3 animate-spin opacity-60" />
+            <button
+              onClick={() => setShowOfflineBanner(false)}
+              className="text-warning/50 hover:text-warning transition-colors ml-1"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar collapsed={sidebarCollapsed} onToggle={toggleSidebar} />
         <div className="flex flex-col flex-1 min-w-0 overflow-hidden">
@@ -113,6 +239,8 @@ export function MainLayout() {
       <FloatingTerminal />
       <OnboardingWizard />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
+      {/* Gift 2: Keyboard shortcuts panel */}
+      <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
     </div>
   );
 }

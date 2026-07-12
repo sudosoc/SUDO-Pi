@@ -66,7 +66,6 @@ export const GATED_PAGES: PageDef[] = [
   { to: "/smart-disk", label: "SMART Disks", group: "Hardware" },
   { to: "/ups", label: "UPS Monitor", group: "Hardware" },
   // Tools extras
-  { to: "/scripts", label: "Script Runner", group: "Tools" },
   { to: "/snapshots", label: "Snapshots", group: "Tools" },
 ];
 
