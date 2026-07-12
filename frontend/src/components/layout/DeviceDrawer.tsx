@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Activity, Clipboard, Globe, HardDrive, Laptop, Network,
-  Power, Radio, Search, Shield, Terminal, Timer, Wifi, X,
+  Power, Radio, Search, Shield, Star, Terminal, Timer, Wifi, X,
 } from "lucide-react";
 import { useMutation } from "@tanstack/react-query";
 import { cn } from "@/lib/utils";
@@ -10,6 +10,7 @@ import { apiClient } from "@/api/client";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { formatRelative } from "@/lib/utils";
+import { useWatchlistStore } from "@/stores/watchlistStore";
 
 // ── types ─────────────────────────────────────────────────────────────────────
 
@@ -68,8 +69,11 @@ interface DeviceDrawerProps {
 
 export function DeviceDrawer({ device, onClose }: DeviceDrawerProps) {
   const navigate = useNavigate();
+  const { toggle, isWatched } = useWatchlistStore();
   const [pingResult, setPingResult] = useState<PingResult | null>(null);
   const [wolSent,    setWolSent]    = useState(false);
+
+  const watched = device ? isWatched(device.mac_address) : false;
 
   const pingMut = useMutation<PingResult>({
     mutationFn: async () => {
@@ -127,6 +131,18 @@ export function DeviceDrawer({ device, onClose }: DeviceDrawerProps) {
             <p className="font-semibold text-[13px] truncate">{device?.hostname || "Unknown device"}</p>
             <p className="text-[11px] text-muted-foreground/60 truncate">{device?.vendor ?? device?.mac_address}</p>
           </div>
+          <button
+            onClick={() => device && toggle(device.mac_address)}
+            className={cn(
+              "w-7 h-7 rounded-lg flex items-center justify-center transition-colors",
+              watched
+                ? "text-yellow-400 hover:text-yellow-300"
+                : "text-muted-foreground/25 hover:text-yellow-400/60",
+            )}
+            title={watched ? "Remove from watchlist" : "Add to watchlist"}
+          >
+            <Star className={cn("w-4 h-4", watched && "fill-current")} />
+          </button>
           <button
             onClick={onClose}
             className="w-7 h-7 rounded-lg flex items-center justify-center text-muted-foreground/40 hover:text-foreground hover:bg-secondary/60 transition-colors"

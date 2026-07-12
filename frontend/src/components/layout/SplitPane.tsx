@@ -1,44 +1,36 @@
 import { lazy, Suspense, useState } from "react";
-import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { ChevronDown, X } from "lucide-react";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { useSplitStore } from "@/stores/splitStore";
 import { cn } from "@/lib/utils";
 
 // ── Available split routes ─────────────────────────────────────────────────────
-// Each entry is lazily loaded so the bundle stays lean.
 
 const SPLIT_ROUTES: Record<string, { label: string; component: React.LazyExoticComponent<React.ComponentType> }> = {
-  "/system":          { label: "System",         component: lazy(() => import("@/pages/monitor/SystemPage")) },
-  "/processes":       { label: "Processes",      component: lazy(() => import("@/pages/monitor/ProcessPage")) },
-  "/logs":            { label: "Logs",           component: lazy(() => import("@/pages/monitor/LogsPage")) },
-  "/metrics":         { label: "Metrics",        component: lazy(() => import("@/pages/monitor/MetricsPage")) },
-  "/network-traffic": { label: "Traffic",        component: lazy(() => import("@/pages/network/NetworkTrafficPage")) },
-  "/devices":         { label: "Devices",        component: lazy(() => import("@/pages/network/DevicesPage")) },
-  "/firewall":        { label: "Firewall",       component: lazy(() => import("@/pages/network/FirewallPage")) },
-  "/network-scanner": { label: "Scanner",        component: lazy(() => import("@/pages/network/NetworkScannerPage")) },
-  "/docker":          { label: "Docker",         component: lazy(() => import("@/pages/containers/DockerPage")) },
-  "/terminal":        { label: "Terminal",       component: lazy(() => import("@/pages/tools/TerminalPage")) },
-  "/storage":         { label: "Storage",        component: lazy(() => import("@/pages/hardware/StoragePage")) },
+  "/system":          { label: "System",    component: lazy(() => import("@/pages/monitor/SystemPage")) },
+  "/processes":       { label: "Processes", component: lazy(() => import("@/pages/monitor/ProcessPage")) },
+  "/logs":            { label: "Logs",      component: lazy(() => import("@/pages/monitor/LogsPage")) },
+  "/metrics":         { label: "Metrics",   component: lazy(() => import("@/pages/monitor/MetricsPage")) },
+  "/network-traffic": { label: "Traffic",   component: lazy(() => import("@/pages/network/NetworkTrafficPage")) },
+  "/devices":         { label: "Devices",   component: lazy(() => import("@/pages/network/DevicesPage")) },
+  "/firewall":        { label: "Firewall",  component: lazy(() => import("@/pages/network/FirewallPage")) },
+  "/network-scanner": { label: "Scanner",   component: lazy(() => import("@/pages/network/NetworkScannerPage")) },
+  "/docker":          { label: "Docker",    component: lazy(() => import("@/pages/containers/DockerPage")) },
+  "/terminal":        { label: "Terminal",  component: lazy(() => import("@/pages/tools/TerminalPage")) },
+  "/storage":         { label: "Storage",   component: lazy(() => import("@/pages/hardware/StoragePage")) },
 };
 
 function PaneLoader() {
   return (
-    <div className="flex items-center justify-center h-full min-h-[200px]">
-      <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin opacity-50" />
+    <div className="flex items-center justify-center h-32">
+      <div className="w-5 h-5 border-2 border-primary/40 border-t-primary rounded-full animate-spin" />
     </div>
   );
 }
 
 // ── Route selector ─────────────────────────────────────────────────────────────
 
-function RouteSelector({
-  value,
-  onChange,
-}: {
-  value: string;
-  onChange: (r: string) => void;
-}) {
+function RouteSelector({ value, onChange }: { value: string; onChange: (r: string) => void }) {
   const [open, setOpen] = useState(false);
   const current = SPLIT_ROUTES[value];
 
@@ -85,49 +77,31 @@ export function SplitPane() {
   const Component = entry?.component;
 
   return (
-    <div className="flex flex-col h-full border-l border-border/40 min-w-0">
-      {/* Pane header */}
-      <div className="h-[42px] shrink-0 flex items-center gap-2 px-3 border-b border-border/40 bg-secondary/10">
-        <span className="text-[10px] text-muted-foreground/40 font-semibold tracking-widest uppercase mr-1">Split</span>
+    <div className="flex flex-col h-full bg-background">
+      {/* Header */}
+      <div className="h-[42px] shrink-0 flex items-center gap-2 px-3 border-b border-border/40 bg-secondary/5">
+        <span className="text-[10px] text-muted-foreground/40 font-semibold tracking-widest uppercase mr-1">
+          Split
+        </span>
         <RouteSelector value={rightRoute} onChange={setRightRoute} />
         <div className="flex-1" />
         <button
           onClick={() => setSplit(false)}
           className="w-6 h-6 rounded-md flex items-center justify-center text-muted-foreground/30 hover:text-foreground hover:bg-secondary/60 transition-colors"
-          title="Close split view"
+          title="Close split view (Ctrl+\)"
         >
           <X className="w-3.5 h-3.5" />
         </button>
       </div>
 
-      {/* Pane content — isolated MemoryRouter so navigation is independent */}
-      <div className="flex-1 overflow-auto">
+      {/* Content — renders the component directly, shares the main app router */}
+      <div className="flex-1 overflow-y-auto overflow-x-hidden">
         {Component ? (
-          <MemoryRouter initialEntries={[rightRoute]}>
-            <Routes>
-              <Route
-                path={rightRoute}
-                element={
-                  <ErrorBoundary>
-                    <Suspense fallback={<PaneLoader />}>
-                      <Component />
-                    </Suspense>
-                  </ErrorBoundary>
-                }
-              />
-              {/* Catch-all for any in-pane navigation */}
-              <Route
-                path="*"
-                element={
-                  <ErrorBoundary>
-                    <Suspense fallback={<PaneLoader />}>
-                      <Component />
-                    </Suspense>
-                  </ErrorBoundary>
-                }
-              />
-            </Routes>
-          </MemoryRouter>
+          <ErrorBoundary>
+            <Suspense fallback={<PaneLoader />}>
+              <Component />
+            </Suspense>
+          </ErrorBoundary>
         ) : (
           <div className="flex items-center justify-center h-full text-sm text-muted-foreground/40">
             Select a page to compare

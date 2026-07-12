@@ -6,6 +6,7 @@ import { canAccessPage } from "@/lib/pages";
 import { useAuthStore } from "@/stores/authStore";
 import { authApi } from "@/api/auth";
 import { NAV_GROUPS, getActiveGroup, type NavGroup } from "@/lib/navGroups";
+import { useSystemStore } from "@/stores/systemStore";
 
 // ─── Props ─────────────────────────────────────────────────────────────────────
 
@@ -29,10 +30,46 @@ function saveLastVisited(groupId: string, pathname: string) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(current));
 }
 
+// ─── Gift 5: CPU Heatmap ──────────────────────────────────────────────────────
+
+function CpuHeatmap({ history }: { history: number[] }) {
+  const cells = history.slice(-60);
+  while (cells.length < 60) cells.unshift(0);
+
+  return (
+    <div className="px-3 pb-2 pt-1">
+      <p className="text-[9px] font-semibold tracking-widest uppercase text-muted-foreground/30 mb-1.5">
+        CPU · 60s
+      </p>
+      <div className="grid gap-[2px]" style={{ gridTemplateColumns: "repeat(10, 1fr)" }}>
+        {cells.map((v, i) => {
+          const opacity = Math.max(0.06, v / 100);
+          const isHot   = v > 85;
+          const isWarm  = v > 60;
+          return (
+            <div
+              key={i}
+              className={cn(
+                "rounded-[2px]",
+                isHot  ? "bg-destructive" :
+                isWarm ? "bg-warning"     :
+                         "bg-primary",
+              )}
+              style={{ height: 5, opacity }}
+              title={`${v.toFixed(0)}%`}
+            />
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Sidebar ───────────────────────────────────────────────────────────────────
 
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
-  const { user, logout } = useAuthStore();
+  const { user, logout }      = useAuthStore();
+  const { cpuHistory }        = useSystemStore();
   const location = useLocation();
   const navigate = useNavigate();
 
@@ -222,6 +259,13 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
           );
         })}
       </nav>
+
+      {/* ── CPU Heatmap (expanded only) ── */}
+      {!collapsed && cpuHistory.length > 0 && (
+        <div className="border-t border-border/30 shrink-0">
+          <CpuHeatmap history={cpuHistory} />
+        </div>
+      )}
 
       {/* ── User + Logout ── */}
       <div className={cn(

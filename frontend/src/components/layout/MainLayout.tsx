@@ -9,12 +9,15 @@ import { OnboardingWizard } from "./OnboardingWizard";
 import { ShortcutsModal } from "./ShortcutsModal";
 import { ContextMenu } from "./ContextMenu";
 import { SplitPane } from "./SplitPane";
+import { VimCommandBar } from "./VimCommandBar";
+import { RouteNotes } from "./RouteNotes";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { CommandPalette } from "@/components/CommandPalette";
 import { useSystemMetrics } from "@/hooks/useSystemMetrics";
 import { useSystemStore } from "@/stores/systemStore";
 import { useNavHistory } from "@/hooks/useNavHistory";
 import { useSplitStore } from "@/stores/splitStore";
+import { useWatchlistMonitor } from "@/hooks/useWatchlistMonitor";
 import { WifiOff, RefreshCw, Minimize2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
@@ -50,10 +53,13 @@ export function MainLayout() {
   const [shortcutsOpen,    setShortcutsOpen]    = useState(false);
   const [focusMode,        setFocusMode]        = useState(false);
   const [showOfflineBanner, setShowOfflineBanner] = useState(false);
+  const [vimOpen,          setVimOpen]          = useState(false);
+  const [notesOpen,        setNotesOpen]        = useState(false);
 
   const hadConnectionRef = useRef(false);
 
   useSystemMetrics();
+  useWatchlistMonitor();
 
   useEffect(() => {
     const stored = localStorage.getItem("sidebar-collapsed");
@@ -123,6 +129,20 @@ export function MainLayout() {
         return;
       }
 
+      // : — Vim command bar
+      if (e.key === ":" && !e.ctrlKey && !e.metaKey) {
+        e.preventDefault();
+        setVimOpen(true);
+        return;
+      }
+
+      // N — route sticky notes toggle
+      if (e.key === "n" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+        e.preventDefault();
+        setNotesOpen((v) => !v);
+        return;
+      }
+
       // Escape — exit focus mode
       if (e.key === "Escape" && focusMode) {
         setFocusMode(false);
@@ -152,7 +172,7 @@ export function MainLayout() {
       window.removeEventListener("keydown", handler);
       if (gTimer) clearTimeout(gTimer);
     };
-  }, [navigate, focusMode, splitEnabled, canGoBack, canGoForward, goBack, goForward, setSplit]);
+  }, [navigate, focusMode, splitEnabled, canGoBack, canGoForward, goBack, goForward, setSplit, vimOpen, notesOpen]);
 
   const toggleSidebar = useCallback(() => {
     setSidebarCollapsed((prev) => {
@@ -204,29 +224,31 @@ export function MainLayout() {
           )}
 
           {/* Content area — split or single */}
-          <main className={cn(
-            "flex-1 min-h-0",
-            splitEnabled ? "flex overflow-hidden" : "overflow-auto",
-          )}>
-            {/* Primary pane */}
-            <div className={cn(
-              splitEnabled ? "flex-1 min-w-0 overflow-auto" : "h-full",
-            )}>
-              <div key={location.pathname} className="page-transition h-full">
-                <ErrorBoundary>
-                  <Suspense fallback={<PageLoader />}>
-                    <Outlet />
-                  </Suspense>
-                </ErrorBoundary>
+          <main className="relative flex-1 min-h-0">
+            <div className="absolute inset-0 flex overflow-hidden">
+              {/* Primary pane */}
+              <div className={cn(
+                "overflow-y-auto overflow-x-hidden flex flex-col",
+                splitEnabled
+                  ? "w-1/2 border-r border-border/40"
+                  : "flex-1",
+              )}>
+                <div key={location.pathname} className="page-transition flex-1">
+                  <ErrorBoundary>
+                    <Suspense fallback={<PageLoader />}>
+                      <Outlet />
+                    </Suspense>
+                  </ErrorBoundary>
+                </div>
               </div>
-            </div>
 
-            {/* Secondary pane */}
-            {splitEnabled && (
-              <div className="flex-1 min-w-0 overflow-hidden flex flex-col">
-                <SplitPane />
-              </div>
-            )}
+              {/* Secondary pane */}
+              {splitEnabled && (
+                <div className="flex-1 overflow-hidden flex flex-col animate-in slide-in-from-right duration-200">
+                  <SplitPane />
+                </div>
+              )}
+            </div>
           </main>
         </div>
       </div>
@@ -253,6 +275,8 @@ export function MainLayout() {
       <OnboardingWizard />
       <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
       <ShortcutsModal open={shortcutsOpen} onClose={() => setShortcutsOpen(false)} />
+      <VimCommandBar open={vimOpen} onClose={() => setVimOpen(false)} />
+      <RouteNotes open={notesOpen} onClose={() => setNotesOpen(false)} />
 
       {/* Global smart context menu */}
       <ContextMenu

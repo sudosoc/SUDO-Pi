@@ -1,11 +1,12 @@
 import { useState, useEffect, useMemo } from "react";
 import { NavLink, useLocation } from "react-router-dom";
 import {
-  Bell, ChevronLeft, ChevronRight, Columns2, Maximize2,
-  Minimize2, Moon, Power, RefreshCw, Search, Sun, X,
+  Bell, ChevronLeft, ChevronRight, Columns2,
+  Maximize2, Minimize2, Moon, Power, RefreshCw, Search, Sun, X,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { formatUptime } from "@/lib/utils";
+import { formatBytes, formatUptime } from "@/lib/utils";
+import type { SystemStats } from "@/types";
 import { useSystemStore } from "@/stores/systemStore";
 import { useNotificationStore } from "@/stores/notificationStore";
 import { useTheme } from "@/contexts/ThemeContext";
@@ -146,6 +147,119 @@ function NotificationsPanel() {
           ))
         )}
       </div>
+    </div>
+  );
+}
+
+// ─── Gift 4: Live Stats Popup ─────────────────────────────────────────────────
+
+function StatBar({ label, pct, value, warn }: { label: string; pct: number; value: string; warn?: boolean }) {
+  const clr = pct > 85 ? "bg-destructive" : pct > 65 ? "bg-warning" : "bg-primary";
+  return (
+    <div className="space-y-0.5">
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-muted-foreground/60">{label}</span>
+        <span className={cn("text-[10px] tabular-nums font-medium", warn && pct > 85 ? "text-destructive" : "text-foreground/70")}>
+          {value}
+        </span>
+      </div>
+      <div className="h-1 rounded-full bg-secondary/50 overflow-hidden">
+        <div className={cn("h-full rounded-full transition-all duration-500", clr)} style={{ width: `${Math.min(pct, 100)}%` }} />
+      </div>
+    </div>
+  );
+}
+
+function LiveStatsPopup({ stats, onClose }: { stats: SystemStats; onClose: () => void }) {
+  const disk = stats.disks.find((d) => d.mountpoint === "/") ?? stats.disks[0];
+  const mainIface = stats.network_interfaces.find((i) => i.name !== "lo");
+  const tempC = stats.temperature.cpu;
+  const tempColor = !tempC ? "text-muted-foreground/50"
+    : tempC < 55 ? "text-success" : tempC < 70 ? "text-warning" : "text-destructive";
+
+  return (
+    <div
+      className="absolute right-0 top-10 w-60 bg-popover/95 backdrop-blur-2xl border border-border/60 rounded-xl shadow-2xl z-50 p-3 space-y-2.5"
+      style={{ boxShadow: "0 20px 60px hsl(260 50% 3%/0.7), 0 0 0 1px hsl(var(--primary)/0.08)" }}
+    >
+      <div className="flex items-center justify-between border-b border-border/40 pb-2">
+        <span className="text-[10px] font-bold tracking-widest uppercase text-muted-foreground/60">Live System</span>
+        <button onClick={onClose} className="text-muted-foreground/30 hover:text-foreground transition-colors">
+          <X className="w-3 h-3" />
+        </button>
+      </div>
+
+      <StatBar label="CPU"    pct={stats.cpu.percent}    value={`${stats.cpu.percent.toFixed(1)}%`} warn />
+      <StatBar label="RAM"    pct={stats.memory.percent} value={`${stats.memory.percent.toFixed(1)}%`} warn />
+      {disk && <StatBar label="Disk"   pct={disk.percent}         value={`${disk.percent.toFixed(0)}%`} />}
+
+      {tempC && (
+        <div className="flex items-center justify-between pt-0.5">
+          <span className="text-[10px] text-muted-foreground/60">Temp</span>
+          <span className={cn("text-[11px] font-bold tabular-nums", tempColor)}>{tempC.toFixed(0)}°C</span>
+        </div>
+      )}
+
+      {mainIface && (
+        <div className="flex items-center justify-between pt-0.5 border-t border-border/30">
+          <span className="text-[10px] text-muted-foreground/60">{mainIface.name}</span>
+          <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+            ↑{formatBytes(mainIface.bytes_sent)} ↓{formatBytes(mainIface.bytes_recv)}
+          </span>
+        </div>
+      )}
+
+      <div className="flex items-center justify-between border-t border-border/30 pt-1">
+        <span className="text-[10px] text-muted-foreground/60">Load avg</span>
+        <span className="text-[10px] font-mono text-muted-foreground/60 tabular-nums">
+          {stats.cpu.load_avg_1.toFixed(2)} / {stats.cpu.load_avg_5.toFixed(2)} / {stats.cpu.load_avg_15.toFixed(2)}
+        </span>
+      </div>
+
+      <div className="flex items-center justify-between">
+        <span className="text-[10px] text-muted-foreground/60">Uptime</span>
+        <span className="text-[10px] font-mono text-foreground/60 tabular-nums">{formatUptime(stats.uptime_seconds)}</span>
+      </div>
+    </div>
+  );
+}
+
+function LiveStatusDot({ stats, wsConnected }: { stats: SystemStats | null; wsConnected: boolean }) {
+  const [open, setOpen] = useState(false);
+  const dotColor = wsConnected
+    ? stats && stats.cpu.percent > 85 ? "bg-warning" : "bg-success"
+    : "bg-muted-foreground/30";
+  const glowColor = wsConnected
+    ? stats && stats.cpu.percent > 85 ? "hsl(var(--warning)/0.7)" : "hsl(var(--success)/0.7)"
+    : undefined;
+
+  return (
+    <div className="relative">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="flex items-center justify-center w-6 h-6"
+        title={wsConnected ? "Click for live stats" : "Reconnecting…"}
+      >
+        <span className="relative flex h-1.5 w-1.5">
+          {wsConnected && <span className={cn("animate-ping absolute inline-flex h-full w-full rounded-full opacity-50", dotColor)} />}
+          <span
+            className={cn("relative inline-flex rounded-full h-1.5 w-1.5", dotColor)}
+            style={glowColor ? { boxShadow: `0 0 5px ${glowColor}` } : undefined}
+          />
+        </span>
+      </button>
+      {open && (
+        <>
+          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          {stats ? (
+            <LiveStatsPopup stats={stats} onClose={() => setOpen(false)} />
+          ) : (
+            <div className="absolute right-0 top-10 w-44 bg-popover/95 border border-border/60 rounded-xl shadow-xl z-50 p-3 text-[11px] text-muted-foreground/50">
+              {wsConnected ? "Waiting for first data…" : "WebSocket disconnected"}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }
@@ -382,19 +496,8 @@ export function TabBar({ onOpenPalette, focusMode, onToggleFocus }: TabBarProps)
           <kbd className="ml-0.5 text-[9px] border border-border/50 rounded px-1 font-mono bg-muted/40 text-muted-foreground/40">⌘K</kbd>
         </button>
 
-        {/* WS dot */}
-        <span
-          className="flex items-center justify-center w-6 h-6"
-          title={wsConnected ? "Live — real-time connected" : "Reconnecting…"}
-        >
-          <span className="relative flex h-1.5 w-1.5">
-            {wsConnected && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-success opacity-50" />}
-            <span
-              className={cn("relative inline-flex rounded-full h-1.5 w-1.5", wsConnected ? "bg-success" : "bg-muted-foreground/30")}
-              style={wsConnected ? { boxShadow: "0 0 5px hsl(var(--success)/0.7)" } : undefined}
-            />
-          </span>
-        </span>
+        {/* WS dot → live stats popup */}
+        <LiveStatusDot stats={stats} wsConnected={wsConnected} />
 
         {/* Split view toggle */}
         <Button
