@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import glob as _glob
 import os
 import re
 from pathlib import Path
@@ -20,6 +21,24 @@ async def _run(cmd: list[str], timeout: float = 10.0) -> tuple[int, str, str]:
         proc.kill()
         return -1, "", "Command timed out"
     return proc.returncode or 0, stdout.decode(errors="replace"), stderr.decode(errors="replace")
+
+
+def _xenv() -> dict[str, str]:
+    """Build env with DISPLAY and XAUTHORITY for the current X session."""
+    env = {**os.environ, "DISPLAY": ":0"}
+    if os.environ.get("XAUTHORITY"):
+        return env
+    for pattern in (
+        "/run/user/*/Xauthority",
+        "/home/*/.Xauthority",
+        "/tmp/.xauth*",
+        "/root/.Xauthority",
+    ):
+        matches = _glob.glob(pattern)
+        if matches:
+            env["XAUTHORITY"] = matches[0]
+            return env
+    return env
 
 
 async def get_display_status() -> dict:
@@ -42,7 +61,6 @@ async def get_display_status() -> dict:
         m = re.search(r"(\d{3,4})x(\d{3,4})", out)
         if m:
             result["resolution"] = f"{m.group(1)}x{m.group(2)}"
-        # Try to extract refresh rate
         rf = re.search(r"@\s*(\d+(?:\.\d+)?)\s*Hz", out)
         if rf:
             try:
@@ -56,7 +74,7 @@ async def get_display_status() -> dict:
         result["display_on"] = "display_power=1" in out2
 
     # Try xrandr
-    env = {**os.environ, "DISPLAY": ":0", "XAUTHORITY": "/home/kali/.Xauthority"}
+    env = _xenv()
     proc = await asyncio.create_subprocess_exec(
         "xrandr", "--query",
         stdout=asyncio.subprocess.PIPE,
@@ -77,21 +95,18 @@ async def get_display_status() -> dict:
                     is_primary = "primary" in rest
                     current_res = None
                     current_rate = None
-                    # Current resolution comes after 'primary' or directly: 1920x1080+0+0
                     res_m = re.search(r"(\d+x\d+)\+\d+\+\d+", rest)
                     if res_m:
                         current_res = res_m.group(1)
-                        # If no top-level resolution yet, set it
                         if not result["resolution"] and is_connected:
                             result["resolution"] = current_res
-                    display_entry = {
+                    result["displays"].append({
                         "name": display_name,
                         "connected": is_connected,
                         "resolution": current_res,
                         "refresh_rate": current_rate,
                         "is_primary": is_primary,
-                    }
-                    result["displays"].append(display_entry)
+                    })
     except asyncio.TimeoutError:
         if proc.returncode is None:
             proc.kill()
@@ -105,7 +120,6 @@ async def get_available_resolutions() -> list[str]:
     """List available resolutions via tvservice or xrandr."""
     resolutions: set[str] = set()
 
-    # Try tvservice -m DMT and CEA
     for mode_type in ("DMT", "CEA"):
         code, out, _ = await _run(["tvservice", "-m", mode_type], timeout=5.0)
         if code == 0:
@@ -114,8 +128,7 @@ async def get_available_resolutions() -> list[str]:
                 if m:
                     resolutions.add(m.group(1))
 
-    # Try xrandr as fallback / supplement
-    env = {**os.environ, "DISPLAY": ":0", "XAUTHORITY": "/home/kali/.Xauthority"}
+    env = _xenv()
     proc = await asyncio.create_subprocess_exec(
         "xrandr", "--query",
         stdout=asyncio.subprocess.PIPE,
@@ -126,7 +139,6 @@ async def get_available_resolutions() -> list[str]:
         xout, _ = await asyncio.wait_for(proc.communicate(), timeout=5.0)
         xrandr_output = xout.decode(errors="replace")
         for line in xrandr_output.splitlines():
-            # Mode lines start with whitespace and look like "   1920x1080      60.00*+  50.00"
             if line and line[0] in (" ", "\t"):
                 m = re.match(r"\s+(\d{3,4}x\d{3,4})", line)
                 if m:
@@ -157,7 +169,7 @@ async def set_resolution_xrandr(
     display_name: str, resolution: str, refresh_rate: str = ""
 ) -> tuple[bool, str]:
     """Set resolution via xrandr."""
-    env = {**os.environ, "DISPLAY": ":0", "XAUTHORITY": "/home/kali/.Xauthority"}
+    env = _xenv()
     cmd = ["xrandr", "--output", display_name, "--mode", resolution]
     if refresh_rate:
         cmd += ["--rate", refresh_rate]
@@ -184,7 +196,7 @@ async def rotate_display(display_name: str, rotation: str) -> tuple[bool, str]:
     if rotation not in ("normal", "inverted", "left", "right"):
         return False, "Invalid rotation. Must be one of: normal, inverted, left, right"
 
-    env = {**os.environ, "DISPLAY": ":0", "XAUTHORITY": "/home/kali/.Xauthority"}
+    env = _xenv()
     proc = await asyncio.create_subprocess_exec(
         "xrandr", "--output", display_name, "--rotate", rotation,
         stdout=asyncio.subprocess.PIPE,
@@ -213,7 +225,7 @@ async def get_gpu_memory() -> int | None:
 
 
 async def set_gpu_memory(mb: int) -> bool:
-    """Write gpu_mem={mb} to /boot/firmware/config.txt or /boot/config.txt."""
+    """Write gpu_mem={mb} to /boot/firmware/config.txt using sudo tee."""
     allowed = {16, 32, 64, 128, 256, 512}
     if mb not in allowed:
         logger.error("Invalid GPU memory value: {}. Allowed: {}", mb, allowed)
@@ -224,12 +236,34 @@ async def set_gpu_memory(mb: int) -> bool:
         config_path = "/boot/config.txt"
 
     try:
-        content = Path(config_path).read_text()
+        # Read current content (no root needed for read)
+        try:
+            content = Path(config_path).read_text()
+        except PermissionError:
+            code, content, _ = await _run(["sudo", "cat", config_path], timeout=5.0)
+            if code != 0:
+                logger.error("Cannot read {}", config_path)
+                return False
+
         if "gpu_mem=" in content:
-            content = re.sub(r"gpu_mem=\d+", f"gpu_mem={mb}", content)
+            new_content = re.sub(r"gpu_mem=\d+", f"gpu_mem={mb}", content)
         else:
-            content = content.rstrip("\n") + f"\ngpu_mem={mb}\n"
-        Path(config_path).write_text(content)
+            new_content = content.rstrip("\n") + f"\ngpu_mem={mb}\n"
+
+        # Write via sudo tee (backend runs as non-root)
+        proc = await asyncio.create_subprocess_exec(
+            "sudo", "tee", config_path,
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.DEVNULL,
+            stderr=asyncio.subprocess.PIPE,
+        )
+        _, stderr = await asyncio.wait_for(
+            proc.communicate(new_content.encode()), timeout=10.0
+        )
+        if proc.returncode != 0:
+            logger.error("sudo tee failed writing {}: {}", config_path, stderr.decode(errors="replace"))
+            return False
+
         logger.info("Set GPU memory to {}MB in {}", mb, config_path)
         return True
     except Exception as exc:

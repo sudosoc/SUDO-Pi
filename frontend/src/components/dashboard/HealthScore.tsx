@@ -9,7 +9,7 @@ interface HealthScoreProps {
   ram: number;
   disk: number;
   temp: number | null;
-  servicesUpPct: number; // 0–100
+  servicesUpPct: number | null; // 0–100, null when unavailable
 }
 
 // ─── Score calculation ────────────────────────────────────────────────────────
@@ -28,16 +28,17 @@ function computeScore(
   ram: number,
   disk: number,
   temp: number | null,
-  servicesUpPct: number
+  servicesUpPct: number | null
 ): ScoreBreakdown {
-  const cpuContrib      = (100 - cpu) * 0.25;
-  const ramContrib      = (100 - ram) * 0.25;
-  const diskContrib     = (100 - disk) * 0.20;
-  const tempContrib     =
+  const cpuContrib  = (100 - cpu) * 0.25;
+  const ramContrib  = (100 - ram) * 0.25;
+  const diskContrib = (100 - disk) * 0.20;
+  const tempContrib =
     temp != null
       ? Math.max(0, 1 - Math.max(0, (temp - 40) / 40)) * 100 * 0.15
       : 100 * 0.15;
-  const servicesContrib = servicesUpPct * 0.15;
+  // When services data is unavailable, redistribute those 15 points proportionally
+  const servicesContrib = servicesUpPct != null ? servicesUpPct * 0.15 : 100 * 0.15;
 
   const raw   = cpuContrib + ramContrib + diskContrib + tempContrib + servicesContrib;
   const score = Math.round(Math.min(100, Math.max(0, raw)));
@@ -125,6 +126,7 @@ function BreakdownRow({ label, value, maxVal }: BreakdownRowProps) {
 
 export function HealthScore({ cpu, ram, disk, temp, servicesUpPct }: HealthScoreProps) {
   const breakdown = computeScore(cpu, ram, disk, temp, servicesUpPct);
+  const hasServices = servicesUpPct != null;
   const { score }  = breakdown;
   const animated   = useCountUp(score);
   const displayed  = Math.round(animated);
@@ -206,7 +208,15 @@ export function HealthScore({ cpu, ram, disk, temp, servicesUpPct }: HealthScore
           {/* Temp max contribution = 100 * 0.15 = 15 */}
           <BreakdownRow label="Temp"     value={breakdown.temp}     maxVal={15} />
           {/* Services max contribution = 100 * 0.15 = 15 */}
-          <BreakdownRow label="Services" value={breakdown.services} maxVal={15} />
+          {hasServices
+            ? <BreakdownRow label="Services" value={breakdown.services} maxVal={15} />
+            : (
+              <div className="flex items-center gap-2 text-xs">
+                <span className="w-16 shrink-0 text-muted-foreground">Services</span>
+                <span className="text-muted-foreground/50 text-[10px]">unavailable</span>
+              </div>
+            )
+          }
         </div>
       </CardContent>
     </Card>

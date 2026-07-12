@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+import asyncio
+
 from loguru import logger
 
 try:
     import docker
-    from docker.errors import DockerException, NotFound, APIError
+    from docker.errors import NotFound
     _docker_available = True
 except ImportError:
     _docker_available = False
@@ -48,47 +50,61 @@ def _format_image(img) -> dict:
 
 
 async def list_containers(all_containers: bool = True) -> list[dict]:
-    client = _client()
-    containers = client.containers.list(all=all_containers)
-    return [_format_container(c) for c in containers]
+    def _sync() -> list[dict]:
+        client = _client()
+        return [_format_container(c) for c in client.containers.list(all=all_containers)]
+    return await asyncio.to_thread(_sync)
 
 
 async def container_action(container_id: str, action: str) -> dict:
     allowed = {"start", "stop", "restart", "pause", "unpause", "kill"}
     if action not in allowed:
         raise ValueError(f"Action {action!r} not allowed")
-    client = _client()
-    try:
-        c = client.containers.get(container_id)
-    except NotFound:
-        raise ValueError(f"Container {container_id!r} not found")
-    logger.info(f"Docker container action: {action} on {container_id}")
-    getattr(c, action)()
-    c.reload()
-    return _format_container(c)
+
+    def _sync() -> dict:
+        client = _client()
+        try:
+            c = client.containers.get(container_id)
+        except NotFound:
+            raise ValueError(f"Container {container_id!r} not found")
+        logger.info(f"Docker container action: {action} on {container_id}")
+        getattr(c, action)()
+        c.reload()
+        return _format_container(c)
+
+    return await asyncio.to_thread(_sync)
 
 
 async def remove_container(container_id: str, force: bool = False) -> dict:
-    client = _client()
-    try:
-        c = client.containers.get(container_id)
-    except NotFound:
-        raise ValueError(f"Container {container_id!r} not found")
-    logger.info(f"Removing container: {container_id}")
-    c.remove(force=force)
-    return {"id": container_id, "status": "removed"}
+    def _sync() -> dict:
+        client = _client()
+        try:
+            c = client.containers.get(container_id)
+        except NotFound:
+            raise ValueError(f"Container {container_id!r} not found")
+        logger.info(f"Removing container: {container_id}")
+        c.remove(force=force)
+        return {"id": container_id, "status": "removed"}
+
+    return await asyncio.to_thread(_sync)
 
 
 async def list_images() -> list[dict]:
-    client = _client()
-    return [_format_image(img) for img in client.images.list()]
+    def _sync() -> list[dict]:
+        client = _client()
+        return [_format_image(img) for img in client.images.list()]
+
+    return await asyncio.to_thread(_sync)
 
 
 async def remove_image(image_id: str, force: bool = False) -> dict:
-    client = _client()
-    try:
-        client.images.remove(image_id, force=force)
-    except NotFound:
-        raise ValueError(f"Image {image_id!r} not found")
-    logger.info(f"Removed Docker image: {image_id}")
-    return {"id": image_id, "status": "removed"}
+    def _sync() -> dict:
+        client = _client()
+        try:
+            client.images.remove(image_id, force=force)
+        except NotFound:
+            raise ValueError(f"Image {image_id!r} not found")
+        logger.info(f"Removed Docker image: {image_id}")
+        return {"id": image_id, "status": "removed"}
+
+    return await asyncio.to_thread(_sync)

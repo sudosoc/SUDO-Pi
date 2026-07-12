@@ -346,7 +346,7 @@ ignore_broadcast_ssid={"1" if hide else "0"}
 wpa=2
 wpa_passphrase={password}
 wpa_key_mgmt=WPA-PSK
-wpa_pairwise=TKIP
+wpa_pairwise=CCMP
 rsn_pairwise=CCMP
 country_code={country}
 """

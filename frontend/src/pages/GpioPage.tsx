@@ -29,7 +29,7 @@ const PIN_COLORS: Record<string, string> = {
 export default function GpioPage() {
   const [selectedPin, setSelectedPin] = useState<GpioPin | null>(null);
 
-  const { data: pins, refetch } = useQuery({
+  const { data: pins, isError: pinsError, refetch } = useQuery({
     queryKey: ["gpio-pins"],
     queryFn: async () => {
       const { data } = await apiClient.get("/gpio/pins");
@@ -59,6 +59,22 @@ export default function GpioPage() {
   const [pwmFreq, setPwmFreq] = useState(1000);
   const [pwmDuty, setPwmDuty] = useState(50);
 
+
+  if (pinsError) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="py-12 text-center">
+            <p className="text-sm font-medium text-muted-foreground">Failed to load GPIO pins</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Ensure <code className="font-mono">pigpio</code> or <code className="font-mono">lgpio</code> is installed and the backend has GPIO access.
+            </p>
+            <Button variant="outline" size="sm" className="mt-4" onClick={() => refetch()}>Retry</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6">

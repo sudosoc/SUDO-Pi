@@ -33,7 +33,7 @@ const CATEGORY_COLORS = [
 export default function NetworkTopologyPage() {
   const chartRef = useRef<ReactECharts>(null);
 
-  const { data, isLoading, isFetching, refetch } = useQuery<TopologyData>({
+  const { data, isLoading, isError, isFetching, refetch } = useQuery<TopologyData>({
     queryKey: ["network-topology"],
     queryFn: async () => {
       const { data } = await apiClient.get<TopologyData>("/network-scanner/topology");
@@ -154,6 +154,13 @@ export default function NetworkTopologyPage() {
           {isLoading ? (
             <div className="h-[520px] flex items-center justify-center">
               <RefreshCw className="w-6 h-6 animate-spin text-muted-foreground/40" />
+            </div>
+          ) : isError ? (
+            <div className="h-[520px] flex flex-col items-center justify-center gap-3">
+              <Share2 className="w-8 h-8 text-destructive/40" />
+              <p className="text-sm text-muted-foreground/60">Failed to load topology data.</p>
+              <p className="text-xs text-muted-foreground/40">Network scanner may not be running. Try refreshing.</p>
+              <button onClick={() => refetch()} className="text-xs text-primary hover:underline mt-1">Retry</button>
             </div>
           ) : nodes.length <= 1 ? (
             <div className="h-[520px] flex flex-col items-center justify-center gap-3">

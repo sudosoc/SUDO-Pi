@@ -210,7 +210,7 @@ function DiskCard({ disk }: { disk: DiskInfo }) {
 }
 
 export default function SmartDiskPage() {
-  const { data: disks, isLoading, isFetching, refetch } = useQuery<DiskInfo[]>({
+  const { data: disks, isLoading, isError, isFetching, refetch } = useQuery<DiskInfo[]>({
     queryKey: ["smart-disks"],
     queryFn: async () => {
       const { data } = await apiClient.get<DiskInfo[]>("/smart/disks");
@@ -241,6 +241,17 @@ export default function SmartDiskPage() {
         <div className="space-y-4">
           {[1, 2].map((i) => <div key={i} className="h-48 bg-muted animate-pulse rounded-xl" />)}
         </div>
+      ) : isError ? (
+        <Card>
+          <CardContent className="py-12 text-center">
+            <HardDrive className="w-8 h-8 text-destructive/40 mx-auto mb-3" />
+            <p className="text-sm font-medium text-muted-foreground">Failed to load disk information</p>
+            <p className="text-xs text-muted-foreground/60 mt-1">
+              Ensure <code className="font-mono text-[11px]">smartmontools</code> is installed and the backend can reach <code className="font-mono text-[11px]">smartctl</code>.
+            </p>
+            <button onClick={() => refetch()} className="text-xs text-primary hover:underline mt-3 block mx-auto">Retry</button>
+          </CardContent>
+        </Card>
       ) : !disks || disks.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">

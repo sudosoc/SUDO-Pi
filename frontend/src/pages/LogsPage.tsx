@@ -52,7 +52,7 @@ export default function LogsPage() {
   const { data: auditLogs, isFetching: loadingAudit, refetch: refetchAudit } = useQuery({
     queryKey: ["audit-logs", page],
     queryFn: async () => {
-      const { data } = await apiClient.get(`/logs/audit?skip=${page * perPage}&limit=${perPage}`);
+      const { data } = await apiClient.get(`/security/audit?skip=${page * perPage}&limit=${perPage}`);
       return data;
     },
     refetchInterval: 30000,

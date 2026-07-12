@@ -127,7 +127,7 @@ export default function NetworkScannerPage() {
   const [activeMode, setActiveMode] = useState(false);
   const [filter, setFilter] = useState("");
 
-  const { data, isLoading, isFetching, refetch, dataUpdatedAt } = useQuery<ScannedDevice[]>({
+  const { data, isLoading, isError, isFetching, refetch, dataUpdatedAt } = useQuery<ScannedDevice[]>({
     queryKey: ["network-scan", activeMode],
     queryFn: async () => {
       const { data } = await apiClient.get<ScannedDevice[]>(
@@ -245,14 +245,23 @@ export default function NetworkScannerPage() {
         </div>
       )}
 
+      {/* Error state */}
+      {!isLoading && isError && (
+        <div className="text-center py-16 text-muted-foreground text-sm">
+          <p className="text-destructive/70 font-medium mb-1">Scan failed</p>
+          <p className="text-xs">Ensure <code className="font-mono">nmap</code> is installed and the backend has sudo access.</p>
+          <button onClick={() => refetch()} className="text-xs text-primary hover:underline mt-3 block mx-auto">Retry</button>
+        </div>
+      )}
+
       {/* Device list */}
-      {!isLoading && filtered.length === 0 && (
+      {!isLoading && !isError && filtered.length === 0 && (
         <div className="text-center py-16 text-muted-foreground text-sm">
           {filter ? "No devices match your filter." : "No devices found. Try enabling active scan or refresh."}
         </div>
       )}
 
-      {!isLoading && filtered.length > 0 && (
+      {!isLoading && !isError && filtered.length > 0 && (
         <div className="space-y-2">
           {filtered.map((device) => (
             <DeviceRow key={`${device.mac}-${device.ip}`} device={device} />

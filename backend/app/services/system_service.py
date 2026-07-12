@@ -379,6 +379,7 @@ _UPDATE_LOG_FILE = Path("/var/log/sudo-pi/update.log")
 def _find_repo_dir() -> Path | None:
     """Locate the git checkout that holds update.sh (search common locations)."""
     candidates = [
+        Path("/opt/sudo-pi"),
         Path("/SUDO-Pi"),
         Path("/opt/SUDO-Pi"),
         Path("/root/SUDO-Pi"),

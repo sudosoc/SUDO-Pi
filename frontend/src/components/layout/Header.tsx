@@ -1,4 +1,4 @@
-import { Bell, Search, Sun, Moon, Monitor, X, Home, ChevronRight } from "lucide-react";
+import { Bell, Search, Sun, Moon, X, Home, ChevronRight } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useSystemStore } from "@/stores/systemStore";
 import { useNotificationStore } from "@/stores/notificationStore";
@@ -35,20 +35,13 @@ export function Header({ title, onOpenPalette }: HeaderProps) {
   const { unreadCount, notifications, markAllRead, clearAll, removeNotification } =
     useNotificationStore();
   const [showNotifications, setShowNotifications] = useState(false);
-  const { theme, setTheme } = useTheme();
+  const { activeTheme, toggleDarkLight } = useTheme();
   const location = useLocation();
   const isHome = location.pathname === "/";
 
-  function cycleTheme() {
-    if (theme === "system") setTheme("dark");
-    else if (theme === "dark") setTheme("light");
-    else setTheme("system");
-  }
-
-  const themeIcon =
-    theme === "dark"  ? <Moon className="w-3.5 h-3.5" />
-    : theme === "light" ? <Sun className="w-3.5 h-3.5" />
-    :                     <Monitor className="w-3.5 h-3.5" />;
+  const themeIcon = activeTheme.dark
+    ? <Moon className="w-3.5 h-3.5" />
+    : <Sun className="w-3.5 h-3.5" />;
 
   return (
     <header className="h-[52px] flex items-center justify-between pl-5 pr-3 border-b border-border/50 bg-popover/70 backdrop-blur-xl shrink-0 z-10">
@@ -107,12 +100,12 @@ export function Header({ title, onOpenPalette }: HeaderProps) {
           </span>
         </span>
 
-        {/* Theme */}
+        {/* Theme toggle dark/light */}
         <Button
           variant="ghost"
           size="icon"
-          onClick={cycleTheme}
-          title={`Theme: ${theme}`}
+          onClick={toggleDarkLight}
+          title={`Switch to ${activeTheme.dark ? "light" : "dark"} mode`}
           className="text-muted-foreground/60 hover:text-foreground w-8 h-8"
         >
           {themeIcon}

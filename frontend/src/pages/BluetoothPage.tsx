@@ -15,7 +15,7 @@ import { cn } from "@/lib/utils";
 export default function BluetoothPage() {
   const queryClient = useQueryClient();
 
-  const { data: devices, isLoading, refetch } = useQuery({
+  const { data: devices, isLoading, isError: devicesError, refetch } = useQuery({
     queryKey: ["bluetooth-devices"],
     queryFn: async () => {
       const { data } = await apiClient.get("/bluetooth/devices");
@@ -85,6 +85,13 @@ export default function BluetoothPage() {
             <CardContent className="p-0">
               {isLoading ? (
                 <SkeletonList count={4} />
+              ) : devicesError ? (
+                <EmptyState
+                  icon={Bluetooth}
+                  title="Failed to load devices"
+                  description="Could not contact the Bluetooth service. Ensure bluetoothctl is available."
+                  action={{ label: "Retry", onClick: () => refetch() }}
+                />
               ) : !devices?.length ? (
                 <EmptyState
                   icon={Bluetooth}

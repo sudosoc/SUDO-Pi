@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import tarfile
+import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -127,11 +129,32 @@ async def restore_snapshot(snapshot_id: int) -> dict:
     restored: list[str] = []
     safe_prefixes = ("etc/sudo-pi/", "etc/dnsmasq.d/", "etc/wireguard/")
 
-    with tarfile.open(str(p), "r:gz") as tar:
-        for member in tar.getmembers():
-            if any(member.name.startswith(pfx) for pfx in safe_prefixes):
-                tar.extract(member, path="/", set_attrs=False)
-                restored.append(f"/{member.name}")
+    with tempfile.TemporaryDirectory(prefix="sudopi_snap_") as tmpdir:
+        # Extract archive to a temp dir (no root needed)
+        with tarfile.open(str(p), "r:gz") as tar:
+            for member in tar.getmembers():
+                if any(member.name.startswith(pfx) for pfx in safe_prefixes):
+                    tar.extract(member, path=tmpdir, set_attrs=False)
+                    restored.append(f"/{member.name}")
+
+        # Move each file to its destination using sudo
+        for rel in restored:
+            src = os.path.join(tmpdir, rel.lstrip("/"))
+            dst = rel
+            dst_dir = os.path.dirname(dst)
+            # Ensure parent directory exists
+            mk = await asyncio.create_subprocess_exec(
+                "sudo", "mkdir", "-p", dst_dir,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await mk.wait()
+            cp = await asyncio.create_subprocess_exec(
+                "sudo", "cp", "--", src, dst,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await cp.wait()
 
     # Reload services that depend on restored configs
     for cmd in [

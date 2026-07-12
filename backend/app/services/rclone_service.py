@@ -84,10 +84,9 @@ async def is_rclone_installed() -> bool:
 
 async def get_rclone_version() -> str | None:
     """Return rclone version string or None if not installed."""
-    code, out, _ = await _run(["rclone", "version", "--check"], timeout=10.0)
+    code, out, _ = await _run(["rclone", "version"], timeout=10.0)
     if code != 0:
-        # Also try with full path
-        code, out, _ = await _run([RCLONE_BIN, "version", "--check"], timeout=10.0)
+        code, out, _ = await _run([RCLONE_BIN, "version"], timeout=10.0)
     if out:
         first_line = out.strip().splitlines()[0] if out.strip() else ""
         return first_line

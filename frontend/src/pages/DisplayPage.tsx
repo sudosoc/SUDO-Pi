@@ -270,19 +270,11 @@ function GpuMemoryCard({
           </div>
         </div>
 
-        {/* GPU usage visual */}
+        {/* GPU allocation badge */}
         {currentMb != null && (
-          <div className="space-y-1">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>GPU memory</span>
-              <span>{currentMb} MB of 4096 MB total</span>
-            </div>
-            <div className="w-full h-2 bg-muted rounded-full overflow-hidden">
-              <div
-                className="h-full bg-purple-500 rounded-full transition-all duration-500"
-                style={{ width: `${Math.min((currentMb / 512) * 100, 100)}%` }}
-              />
-            </div>
+          <div className="flex items-center justify-between text-xs text-muted-foreground">
+            <span>GPU memory allocated</span>
+            <span className="font-medium text-foreground">{currentMb} MB</span>
           </div>
         )}
 

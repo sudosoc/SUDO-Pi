@@ -1,71 +1,61 @@
-import React, { createContext, useContext, useEffect, useState } from "react";
+import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
+import {
+  AppTheme, CustomTheme, ThemeVars, THEMES, DEFAULT_THEME_ID, getTheme,
+} from "@/lib/themes";
 
-type Theme = "dark" | "light" | "system";
-type AccentColor = "cyan" | "purple" | "green" | "orange" | "blue" | "rose";
-type Density = "comfortable" | "compact";
+export type Density = "comfortable" | "compact";
 
 interface ThemeContextValue {
-  theme: Theme;
-  accentColor: AccentColor;
+  themeId: string;
+  activeTheme: AppTheme;
   density: Density;
-  setTheme: (theme: Theme) => void;
-  setAccentColor: (color: AccentColor) => void;
+  customThemes: CustomTheme[];
+  allThemes: AppTheme[];
+  setThemeId: (id: string) => void;
   setDensity: (density: Density) => void;
+  saveCustomTheme: (theme: AppTheme) => string;
+  deleteCustomTheme: (id: string) => void;
+  // Quick dark/light cycle for the header button
+  toggleDarkLight: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextValue | undefined>(undefined);
 
-const THEME_KEY = "sudo-pi-theme";
-const ACCENT_KEY = "sudo-pi-accent";
-const DENSITY_KEY = "sudo-pi-density";
+const THEME_ID_KEY        = "sudo-pi-theme-id";
+const DENSITY_KEY         = "sudo-pi-density";
+const CUSTOM_THEMES_KEY   = "sudo-pi-custom-themes";
+const LAST_DARK_KEY       = "sudo-pi-last-dark";
+const LAST_LIGHT_KEY      = "sudo-pi-last-light";
 
-function getStoredTheme(): Theme {
+function ls<T>(key: string, fallback: T): T {
   try {
-    const stored = localStorage.getItem(THEME_KEY);
-    if (stored === "dark" || stored === "light" || stored === "system") return stored;
-  } catch {}
-  return "dark";
+    const v = localStorage.getItem(key);
+    return v !== null ? (JSON.parse(v) as T) : fallback;
+  } catch { return fallback; }
+}
+function lsSet(key: string, value: unknown) {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch {}
 }
 
-function getStoredAccent(): AccentColor {
+function getStoredCustomThemes(): CustomTheme[] {
   try {
-    const stored = localStorage.getItem(ACCENT_KEY);
-    if (
-      stored === "cyan" ||
-      stored === "purple" ||
-      stored === "green" ||
-      stored === "orange" ||
-      stored === "blue" ||
-      stored === "rose"
-    ) {
-      return stored;
-    }
-  } catch {}
-  return "cyan";
+    const s = localStorage.getItem(CUSTOM_THEMES_KEY);
+    return s ? (JSON.parse(s) as CustomTheme[]) : [];
+  } catch { return []; }
 }
 
-function getStoredDensity(): Density {
-  try {
-    const stored = localStorage.getItem(DENSITY_KEY);
-    if (stored === "comfortable" || stored === "compact") return stored;
-  } catch {}
-  return "comfortable";
-}
-
-function applyTheme(theme: Theme, systemPrefersDark: boolean) {
+export function applyThemeVars(vars: ThemeVars) {
   const root = document.documentElement;
-  const useDark =
-    theme === "dark" || (theme === "system" && systemPrefersDark);
-
-  if (useDark) {
-    root.classList.remove("light");
-  } else {
-    root.classList.add("light");
+  for (const [key, value] of Object.entries(vars)) {
+    root.style.setProperty(`--${key}`, value);
   }
-}
-
-function applyAccent(color: AccentColor) {
-  document.documentElement.setAttribute("data-accent", color);
+  // Drive the `.light` class so that any CSS that still checks it stays correct.
+  const bgL = parseFloat(vars.background.split(" ")[2] ?? "0");
+  if (bgL > 50) {
+    root.classList.add("light");
+  } else {
+    root.classList.remove("light");
+  }
 }
 
 function applyDensity(density: Density) {
@@ -73,60 +63,85 @@ function applyDensity(density: Density) {
 }
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(getStoredTheme);
-  const [accentColor, setAccentState] = useState<AccentColor>(getStoredAccent);
-  const [density, setDensityState] = useState<Density>(getStoredDensity);
+  const [themeId, setThemeIdRaw]   = useState<string>(() => ls(THEME_ID_KEY, DEFAULT_THEME_ID));
+  const [density, setDensityRaw]   = useState<Density>(() => ls<Density>(DENSITY_KEY, "comfortable"));
+  const [customThemes, setCustom]  = useState<CustomTheme[]>(getStoredCustomThemes);
 
-  // Apply on mount and whenever theme changes
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    applyTheme(theme, mq.matches);
+  const allThemes: AppTheme[] = [...THEMES, ...customThemes];
+  const activeTheme = allThemes.find((t) => t.id === themeId) ?? THEMES[0];
 
-    if (theme !== "system") return;
+  useEffect(() => { applyThemeVars(activeTheme.vars); }, [activeTheme]);
+  useEffect(() => { applyDensity(density); }, [density]);
 
-    // Listen for system preference changes only in system mode
-    const handler = (e: MediaQueryListEvent) => {
-      applyTheme("system", e.matches);
-    };
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, [theme]);
+  const setThemeId = useCallback((id: string) => {
+    lsSet(THEME_ID_KEY, id);
+    const t = allThemes.find((x) => x.id === id);
+    if (t) {
+      if (t.dark)  lsSet(LAST_DARK_KEY,  id);
+      else         lsSet(LAST_LIGHT_KEY, id);
+    }
+    setThemeIdRaw(id);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [allThemes]);
 
-  // Apply accent on mount and whenever it changes
-  useEffect(() => {
-    applyAccent(accentColor);
-  }, [accentColor]);
+  const setDensity = useCallback((d: Density) => {
+    lsSet(DENSITY_KEY, d);
+    setDensityRaw(d);
+  }, []);
 
-  // Apply density on mount and whenever it changes
-  useEffect(() => {
-    applyDensity(density);
-  }, [density]);
+  const saveCustomTheme = useCallback((base: AppTheme): string => {
+    const id = base.id.startsWith("custom-") ? base.id : `custom-${Date.now()}`;
+    const ct: CustomTheme = { ...base, id, isCustom: true };
+    setCustom((prev) => {
+      const next = prev.filter((t) => t.id !== id).concat(ct);
+      lsSet(CUSTOM_THEMES_KEY, next);
+      return next;
+    });
+    // Apply immediately
+    lsSet(THEME_ID_KEY, id);
+    setThemeIdRaw(id);
+    return id;
+  }, []);
 
-  const setTheme = (newTheme: Theme) => {
-    try {
-      localStorage.setItem(THEME_KEY, newTheme);
-    } catch {}
-    setThemeState(newTheme);
-  };
+  const deleteCustomTheme = useCallback((id: string) => {
+    setCustom((prev) => {
+      const next = prev.filter((t) => t.id !== id);
+      lsSet(CUSTOM_THEMES_KEY, next);
+      return next;
+    });
+    if (themeId === id) {
+      lsSet(THEME_ID_KEY, DEFAULT_THEME_ID);
+      setThemeIdRaw(DEFAULT_THEME_ID);
+    }
+  }, [themeId]);
 
-  const setAccentColor = (color: AccentColor) => {
-    try {
-      localStorage.setItem(ACCENT_KEY, color);
-    } catch {}
-    setAccentState(color);
-  };
-
-  const setDensity = (newDensity: Density) => {
-    try {
-      localStorage.setItem(DENSITY_KEY, newDensity);
-    } catch {}
-    setDensityState(newDensity);
-  };
+  const toggleDarkLight = useCallback(() => {
+    if (activeTheme.dark) {
+      // Switch to light
+      const lastLight = ls<string>(LAST_LIGHT_KEY, "arctic");
+      const target = allThemes.find((t) => t.id === lastLight && !t.dark) ?? allThemes.find((t) => !t.dark);
+      if (target) setThemeId(target.id);
+    } else {
+      // Switch to dark
+      const lastDark = ls<string>(LAST_DARK_KEY, DEFAULT_THEME_ID);
+      const target = allThemes.find((t) => t.id === lastDark && t.dark) ?? allThemes.find((t) => t.dark);
+      if (target) setThemeId(target.id);
+    }
+  }, [activeTheme, allThemes, setThemeId]);
 
   return (
-    <ThemeContext.Provider
-      value={{ theme, accentColor, density, setTheme, setAccentColor, setDensity }}
-    >
+    <ThemeContext.Provider value={{
+      themeId,
+      activeTheme,
+      density,
+      customThemes,
+      allThemes,
+      setThemeId,
+      setDensity,
+      saveCustomTheme,
+      deleteCustomTheme,
+      toggleDarkLight,
+    }}>
       {children}
     </ThemeContext.Provider>
   );
@@ -134,8 +149,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
 
 export function useTheme(): ThemeContextValue {
   const ctx = useContext(ThemeContext);
-  if (!ctx) {
-    throw new Error("useTheme must be used within a ThemeProvider");
-  }
+  if (!ctx) throw new Error("useTheme must be used within ThemeProvider");
   return ctx;
 }
+
+// Re-export types for convenience
+export type { AppTheme, CustomTheme, ThemeVars };
+export { getTheme };

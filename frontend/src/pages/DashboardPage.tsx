@@ -528,9 +528,8 @@ interface UptimeService {
   status: string;
 }
 
-function useServicesUpPct(): number {
-  // GET /uptime/summary returns a flat array of monitored services
-  const { data } = useQuery<UptimeService[]>({
+function useServicesUpPct(): number | null {
+  const { data, isError } = useQuery<UptimeService[]>({
     queryKey: ["uptime-summary"],
     queryFn: async () => {
       const res = await apiClient.get("/uptime/summary");
@@ -538,11 +537,11 @@ function useServicesUpPct(): number {
     },
     refetchInterval: 30_000,
     staleTime: 20_000,
-    // If the endpoint doesn't exist yet, swallow errors gracefully
     retry: false,
   });
 
-  if (!data?.length) return 100;
+  if (isError || data === undefined) return null;
+  if (!data.length) return null;
   const up = data.filter((s) => s.status === "up" || s.status === "active" || s.status === "running").length;
   return (up / data.length) * 100;
 }

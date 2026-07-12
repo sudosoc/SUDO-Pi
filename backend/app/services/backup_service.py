@@ -399,39 +399,55 @@ async def restore_config_backup(db: AsyncSession, backup_id: int) -> dict:
 
     restored_items: list[str] = []
 
-    def _do_restore() -> list[str]:
+    async def _do_restore() -> list[str]:
         items: list[str] = []
         with tempfile.TemporaryDirectory(prefix="sudopi_restore_") as tmpdir:
             tmp = Path(tmpdir)
-            with tarfile.open(archive_path, "r:gz") as tar:
-                tar.extractall(tmp)
 
-            # Restore .env
+            def _extract() -> None:
+                with tarfile.open(archive_path, "r:gz") as tar:
+                    tar.extractall(tmp)
+
+            await asyncio.get_event_loop().run_in_executor(_executor, _extract)
+
+            # Restore .env (no root needed — file is owned by service user)
             env_candidate = tmp / "opt" / "sudo-pi" / "backend" / ".env"
             if env_candidate.exists() and APP_ENV_PATH.parent.exists():
-                shutil.copy2(env_candidate, APP_ENV_PATH)
+                await asyncio.get_event_loop().run_in_executor(
+                    _executor, lambda: shutil.copy2(env_candidate, APP_ENV_PATH)
+                )
                 items.append(".env")
 
-            # Restore DB (copy alongside current one, restart required to use)
+            # Restore DB alongside current one (restart required to use)
             db_candidate = tmp / "opt" / "sudo-pi" / "backend" / "sudo_pi.db"
             if db_candidate.exists() and DB_PATH.parent.exists():
                 restore_db = DB_PATH.parent / "sudo_pi_restored.db"
-                shutil.copy2(db_candidate, restore_db)
+                await asyncio.get_event_loop().run_in_executor(
+                    _executor, lambda: shutil.copy2(db_candidate, restore_db)
+                )
                 items.append(f"sudo_pi.db -> {restore_db}")
 
-            # Restore /etc/sudo-pi
+            # Restore /etc/sudo-pi using sudo to handle root-owned files
             etc_sudopi_candidate = tmp / "etc" / "sudo-pi"
             if etc_sudopi_candidate.exists():
-                if ETC_SUDOPI.exists():
-                    shutil.rmtree(ETC_SUDOPI, ignore_errors=True)
-                shutil.copytree(etc_sudopi_candidate, ETC_SUDOPI)
+                rm_proc = await asyncio.create_subprocess_exec(
+                    "sudo", "rm", "-rf", str(ETC_SUDOPI),
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await rm_proc.wait()
+                cp_proc = await asyncio.create_subprocess_exec(
+                    "sudo", "cp", "-r", str(etc_sudopi_candidate), str(ETC_SUDOPI),
+                    stdout=asyncio.subprocess.DEVNULL,
+                    stderr=asyncio.subprocess.DEVNULL,
+                )
+                await cp_proc.wait()
                 items.append("/etc/sudo-pi/")
 
         return items
 
-    loop = asyncio.get_event_loop()
     try:
-        restored_items = await loop.run_in_executor(_executor, _do_restore)
+        restored_items = await _do_restore()
         logger.info("Config restore completed for backup id={}: {}", backup_id, restored_items)
         return {
             "success": True,

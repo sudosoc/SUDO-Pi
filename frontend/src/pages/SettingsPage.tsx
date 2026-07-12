@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiClient, getApiError } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,10 +8,13 @@ import { Badge } from "@/components/ui/badge";
 import { toast } from "@/components/ui/use-toast";
 import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
-  AlertTriangle, RefreshCw, Save, Server, Sun, Moon, Monitor, Palette,
+  AlertTriangle, RefreshCw, Save, Server, Palette, Wand2,
   Rows3, Rows4, DownloadCloud, CheckCircle2, XCircle, Loader2, Terminal as TerminalIcon,
+  Check, ChevronDown,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
+import { ThemeCustomizer } from "@/components/ThemeCustomizer";
+import { THEMES } from "@/lib/themes";
 import { cn } from "@/lib/utils";
 
 // ─── Software update ────────────────────────────────────────────────────────
@@ -171,28 +174,17 @@ function SoftwareUpdateCard() {
   );
 }
 
-const themes = [
-  { value: "dark" as const,   label: "Dark",   icon: Moon },
-  { value: "light" as const,  label: "Light",  icon: Sun },
-  { value: "system" as const, label: "System", icon: Monitor },
-];
-
 const densities = [
   { value: "comfortable" as const, label: "Comfortable", icon: Rows3 },
   { value: "compact" as const,     label: "Compact",     icon: Rows4 },
 ];
 
-const accents = [
-  { value: "cyan" as const,   hex: "#22d3ee" },
-  { value: "purple" as const, hex: "#a78bfa" },
-  { value: "green" as const,  hex: "#4ade80" },
-  { value: "orange" as const, hex: "#fb923c" },
-  { value: "blue" as const,   hex: "#60a5fa" },
-  { value: "rose" as const,   hex: "#fb7185" },
-];
+const CATEGORY_LABELS = { dark: "Dark", light: "Light", special: "Special" } as const;
 
 export default function SettingsPage() {
-  const { theme, accentColor, density, setTheme, setAccentColor, setDensity } = useTheme();
+  const { themeId, customThemes, density, setThemeId, setDensity } = useTheme();
+  const [showCustomizer, setShowCustomizer] = useState(false);
+  const [expandCategories, setExpandCategories] = useState<Record<string, boolean>>({ dark: true, light: false, special: false });
   const { confirm: confirmAct, dialog: confirmDlg } = useConfirm();
 
   const { data: settings, isLoading, refetch } = useQuery({
@@ -258,61 +250,107 @@ export default function SettingsPage() {
       {/* ── Appearance ─────────────────────────────────────────────────────── */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-1.5">
-            <Palette className="w-3.5 h-3.5" /> Appearance
+          <CardTitle className="flex items-center gap-1.5 justify-between">
+            <div className="flex items-center gap-1.5">
+              <Palette className="w-3.5 h-3.5" /> Appearance
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="gap-1.5 text-xs h-7"
+              onClick={() => setShowCustomizer((v) => !v)}
+            >
+              <Wand2 className="w-3 h-3" />
+              {showCustomizer ? "Close customizer" : "Customize theme"}
+            </Button>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-5">
-          {/* Theme selector */}
-          <div>
-            <p className="text-sm text-muted-foreground mb-3">Theme</p>
-            <div className="grid grid-cols-3 gap-3">
-              {themes.map(({ value, label, icon: Icon }) => (
-                <button
-                  key={value}
-                  onClick={() => setTheme(value)}
-                  className={cn(
-                    "flex flex-col items-center gap-2 p-4 rounded-lg border transition-colors",
-                    theme === value
-                      ? "bg-primary/10 border-primary text-primary"
-                      : "border-border hover:bg-secondary/50 text-muted-foreground hover:text-foreground"
-                  )}
-                >
-                  <Icon className="w-5 h-5" />
-                  <span className="text-xs font-medium">{label}</span>
-                </button>
-              ))}
-            </div>
-          </div>
+        <CardContent className="space-y-6">
 
-          {/* Accent color picker */}
-          <div>
-            <p className="text-sm text-muted-foreground mb-3">Accent color</p>
-            <div className="flex items-center gap-3">
-              {accents.map(({ value, hex }) => (
-                <button
-                  key={value}
-                  onClick={() => setAccentColor(value)}
-                  title={value.charAt(0).toUpperCase() + value.slice(1)}
-                  className={cn(
-                    "w-6 h-6 rounded-full transition-all",
-                    accentColor === value ? "scale-110" : "hover:scale-110"
-                  )}
-                  style={{
-                    backgroundColor: hex,
-                    outline: accentColor === value
-                      ? `2px solid ${hex}`
-                      : "none",
-                    outlineOffset: "2px",
-                  }}
-                />
-              ))}
+          {/* ── Customizer panel ──────────────────────────────────────────── */}
+          {showCustomizer && (
+            <div className="rounded-xl border border-primary/25 bg-primary/4 p-4">
+              <ThemeCustomizer onClose={() => setShowCustomizer(false)} />
             </div>
-          </div>
+          )}
 
-          {/* Density selector */}
+          {/* ── Theme grid grouped by category ──────────────────────────── */}
+          {!showCustomizer && (
+            <div className="space-y-5">
+              {(["dark", "light", "special"] as const).map((cat) => {
+                const group = [...THEMES, ...customThemes].filter((t) => t.category === cat);
+                if (group.length === 0) return null;
+                const expanded = expandCategories[cat] !== false;
+                return (
+                  <div key={cat}>
+                    <button
+                      className="flex items-center gap-2 w-full mb-3 group"
+                      onClick={() => setExpandCategories((prev) => ({ ...prev, [cat]: !expanded }))}
+                    >
+                      <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">
+                        {CATEGORY_LABELS[cat]}
+                      </span>
+                      <span className="text-[10px] text-muted-foreground/40">{group.length}</span>
+                      <ChevronDown className={cn(
+                        "w-3 h-3 text-muted-foreground/40 ml-auto transition-transform",
+                        !expanded && "-rotate-90",
+                      )} />
+                    </button>
+
+                    {expanded && (
+                      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5">
+                        {group.map((t) => {
+                          const active = themeId === t.id;
+                          return (
+                            <button
+                              key={t.id}
+                              onClick={() => setThemeId(t.id)}
+                              className={cn(
+                                "relative rounded-xl border p-3 text-left transition-all group",
+                                active
+                                  ? "border-primary/60 ring-2 ring-primary/20"
+                                  : "border-border/60 hover:border-primary/30",
+                              )}
+                            >
+                              {/* Color swatches */}
+                              <div className="flex gap-1 mb-2">
+                                <div className="w-full h-8 rounded-md overflow-hidden flex">
+                                  <div className="w-2/3" style={{ background: t.preview.bg }} />
+                                  <div className="w-1/3" style={{ background: t.preview.card }} />
+                                </div>
+                              </div>
+                              <div className="flex gap-1 mb-2.5">
+                                <div className="h-2 w-4 rounded-full" style={{ background: t.preview.primary }} />
+                                <div className="h-2 flex-1 rounded-full" style={{ background: t.preview.text, opacity: 0.4 }} />
+                              </div>
+
+                              {/* Name */}
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[11px]">{t.emoji}</span>
+                                <span className={cn(
+                                  "text-[11px] font-semibold truncate",
+                                  active ? "text-primary" : "text-foreground/80",
+                                )}>
+                                  {t.name}
+                                </span>
+                                {active && (
+                                  <Check className="w-3 h-3 text-primary ml-auto shrink-0" />
+                                )}
+                              </div>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* ── Density ──────────────────────────────────────────────────── */}
           <div>
-            <p className="text-sm text-muted-foreground mb-3">Density</p>
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60 mb-3">Density</p>
             <div className="grid grid-cols-2 gap-3">
               {densities.map(({ value, label, icon: Icon }) => (
                 <button
@@ -322,7 +360,7 @@ export default function SettingsPage() {
                     "flex flex-col items-center gap-2 p-4 rounded-lg border transition-colors",
                     density === value
                       ? "bg-primary/10 border-primary text-primary"
-                      : "border-border hover:bg-secondary/50 text-muted-foreground hover:text-foreground"
+                      : "border-border hover:bg-secondary/50 text-muted-foreground hover:text-foreground",
                   )}
                 >
                   <Icon className="w-5 h-5" />
@@ -359,10 +397,9 @@ export default function SettingsPage() {
                     Hostname
                   </label>
                   <Input
-                    defaultValue={settings?.hostname}
-                    value={hostname || settings?.hostname || ""}
+                    value={hostname !== "" ? hostname : (settings?.hostname ?? "")}
                     onChange={(e) => setHostname(e.target.value)}
-                    placeholder={settings?.hostname}
+                    placeholder={settings?.hostname ?? "raspberry"}
                   />
                 </div>
                 <Button

@@ -166,7 +166,7 @@ async def _check_network() -> list[dict]:
             "Network",
             "warn",
             f"upstream {st['upstream_interface']} present but sharing is off",
-            "Open Network → Internet Sharing → Enable, or run: sudo bash /SUDO-Pi/scripts/internet-sharing.sh",
+            "Open Network → Internet Sharing → Enable, or run: sudo bash /opt/sudo-pi/scripts/internet-sharing.sh",
         )
     ]
 
@@ -250,7 +250,7 @@ async def _check_filesystem() -> list[dict]:
         results.append(_check("Root filesystem", "Storage", "warn", f"could not read: {exc}"))
 
     # Frontend build present
-    for candidate in ("/SUDO-Pi/frontend/dist/index.html", "/opt/sudo-pi/frontend/dist/index.html"):
+    for candidate in ("/opt/sudo-pi/frontend/dist/index.html", "/SUDO-Pi/frontend/dist/index.html"):
         if Path(candidate).exists():
             results.append(_check("Frontend build", "Storage", "ok", f"present at {candidate}"))
             break
