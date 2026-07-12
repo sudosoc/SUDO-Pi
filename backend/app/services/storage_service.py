@@ -323,6 +323,61 @@ async def get_io_stats() -> list[dict]:
     return results
 
 
+async def analyze_directory(path: str, depth: int = 1) -> list[dict]:
+    """Run du -s on immediate children of path and return sorted by size."""
+    import os
+    from pathlib import Path as _Path
+
+    # Validate path — must be absolute and must exist
+    try:
+        resolved = str(_Path(path).resolve())
+    except Exception:
+        return []
+    if not _Path(resolved).is_dir():
+        return []
+
+    # Use du with max-depth to get sizes per subdirectory
+    cmd = [
+        "sudo", "du",
+        "--max-depth", str(depth),
+        "--block-size=1",
+        "--exclude=/proc",
+        "--exclude=/sys",
+        "--exclude=/dev",
+        resolved,
+    ]
+    code, out, _ = await _run(cmd, timeout=60.0)
+    if code != 0:
+        # Try without sudo for non-root directories
+        cmd_no_sudo = [c for c in cmd if c != "sudo"]
+        code, out, _ = await _run(cmd_no_sudo, timeout=60.0)
+        if code != 0:
+            return []
+
+    entries: list[dict] = []
+    for line in out.splitlines():
+        parts = line.split("\t", 1)
+        if len(parts) != 2:
+            continue
+        try:
+            size_bytes = int(parts[0])
+        except ValueError:
+            continue
+        entry_path = parts[1].strip()
+        if entry_path == resolved:
+            continue  # skip total line
+        name = os.path.basename(entry_path) or entry_path
+        entries.append({
+            "path": entry_path,
+            "name": name,
+            "size_bytes": size_bytes,
+            "is_dir": _Path(entry_path).is_dir(),
+        })
+
+    entries.sort(key=lambda x: x["size_bytes"], reverse=True)
+    return entries[:100]
+
+
 async def eject_device(device: str) -> tuple[bool, str]:
     """Eject a removable device."""
     if not device.startswith("/dev/"):

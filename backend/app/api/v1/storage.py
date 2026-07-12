@@ -1,6 +1,6 @@
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 from app.core.dependencies import ActiveUser, AdminUser, CsrfVerified
@@ -75,6 +75,19 @@ async def format_device(body: FormatRequest, _: AdminUser) -> dict:
     if not success:
         raise HTTPException(status_code=500, detail=output or "Format failed")
     return {"detail": f"Formatted {body.device} as {body.fstype}", "output": output}
+
+
+@router.get("/analyze")
+async def analyze_disk_usage(
+    _: AdminUser,
+    path: str = Query("/", min_length=1, max_length=255),
+    depth: int = Query(1, ge=1, le=3),
+) -> list[dict]:
+    import re as _re
+    # Disallow path traversal
+    if ".." in path or not path.startswith("/"):
+        raise HTTPException(400, "Path must be absolute and must not contain '..'")
+    return await storage_service.analyze_directory(path, depth)
 
 
 @router.post("/eject", dependencies=[CsrfVerified])

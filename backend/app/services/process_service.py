@@ -59,6 +59,34 @@ async def kill_process(pid: int, signal: int = 15) -> tuple[bool, str]:
     return True, ""
 
 
+async def get_process_environ(pid: int) -> tuple[dict | None, str]:
+    """Read /proc/{pid}/environ and return parsed key=value dict."""
+    from pathlib import Path
+    environ_path = Path(f"/proc/{pid}/environ")
+    try:
+        raw = environ_path.read_bytes()
+    except PermissionError:
+        # Try with sudo cat as fallback
+        code, out, err = await _run(["sudo", "cat", str(environ_path)], timeout=5.0)
+        if code != 0:
+            return None, f"Permission denied reading environ for PID {pid}"
+        raw = out.encode(errors="replace")
+    except FileNotFoundError:
+        return None, f"Process {pid} no longer exists"
+    except Exception as exc:
+        return None, str(exc)
+
+    env: dict[str, str] = {}
+    for entry in raw.split(b"\x00"):
+        if b"=" in entry:
+            key, _, val = entry.partition(b"=")
+            try:
+                env[key.decode(errors="replace")] = val.decode(errors="replace")
+            except Exception:
+                continue
+    return env, ""
+
+
 async def get_open_ports() -> list[dict]:
     """Return open TCP/UDP listening ports via ss -tlnup."""
     ports: list[dict] = []

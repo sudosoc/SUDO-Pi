@@ -38,6 +38,18 @@ class TimezoneRequest(BaseModel):
         return v
 
 
+class CpuGovernorRequest(BaseModel):
+    governor: str
+
+    @field_validator("governor")
+    @classmethod
+    def validate_governor(cls, v: str) -> str:
+        allowed = {"performance", "powersave", "ondemand", "conservative", "schedutil", "userspace"}
+        if v not in allowed:
+            raise ValueError(f"Governor must be one of: {', '.join(sorted(allowed))}")
+        return v
+
+
 @router.get("/config")
 async def get_system_config(_: AdminUser) -> dict:
     return await system_service.get_system_config()
@@ -118,6 +130,40 @@ async def set_timezone(body: TimezoneRequest, current_user: AdminUser, db: DBSes
         raise HTTPException(500, "Failed to set timezone")
     await audit.log("system.set_timezone", user=current_user, resource=body.timezone, status_code=200)
     return {"detail": f"Timezone set to {body.timezone}"}
+
+
+@router.get("/cpu-freq")
+async def get_cpu_freq(_: ActiveUser) -> dict:
+    return await system_service.get_cpu_freq_info()
+
+
+@router.post("/cpu-governor", dependencies=[CsrfVerified])
+async def set_cpu_governor(body: CpuGovernorRequest, current_user: AdminUser, db: DBSession) -> dict:
+    audit = AuditService(db)
+    ok = await system_service.set_cpu_governor(body.governor)
+    if not ok:
+        raise HTTPException(500, "Failed to set CPU governor (cpufreq may not be supported)")
+    await audit.log("system.set_cpu_governor", user=current_user, resource=body.governor, status_code=200)
+    return {"governor": body.governor}
+
+
+@router.get("/hardware")
+async def get_hardware_info(_: ActiveUser) -> dict:
+    return await system_service.get_hardware_info()
+
+
+@router.get("/boot-log")
+async def get_boot_log(
+    _: ActiveUser,
+    boot: int = Query(0, ge=0, le=5),
+    lines: int = Query(500, ge=1, le=2000),
+) -> list[dict]:
+    return await system_service.get_boot_log(boot=boot, lines=lines)
+
+
+@router.get("/net-interfaces")
+async def get_net_interfaces(_: ActiveUser) -> list[dict]:
+    return await system_service.get_net_interfaces()
 
 
 @router.post("/ntp", dependencies=[CsrfVerified])

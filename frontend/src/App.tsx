@@ -31,6 +31,7 @@ const FirewallPage         = lazy(() => import("@/pages/network/FirewallPage"));
 const CaptivePortalPage    = lazy(() => import("@/pages/network/CaptivePortalPage"));
 const ReverseProxyPage     = lazy(() => import("@/pages/network/ReverseProxyPage"));
 const WakeOnLanPage        = lazy(() => import("@/pages/network/WakeOnLanPage"));
+const PortForwardPage      = lazy(() => import("@/pages/network/PortForwardPage"));
 const SpeedTestPage        = lazy(() => import("@/pages/network/SpeedTestPage"));
 const BluetoothPage        = lazy(() => import("@/pages/network/BluetoothPage"));
 
@@ -118,6 +119,7 @@ export default function App() {
             <Route path="/captive-portal"    element={<CaptivePortalPage />} />
             <Route path="/reverse-proxy"     element={<ReverseProxyPage />} />
             <Route path="/wake-on-lan"       element={<WakeOnLanPage />} />
+            <Route path="/port-forwards"     element={<PortForwardPage />} />
             <Route path="/speedtest"         element={<SpeedTestPage />} />
             <Route path="/bluetooth"         element={<BluetoothPage />} />
 

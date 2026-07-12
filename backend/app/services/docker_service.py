@@ -108,3 +108,28 @@ async def remove_image(image_id: str, force: bool = False) -> dict:
         return {"id": image_id, "status": "removed"}
 
     return await asyncio.to_thread(_sync)
+
+
+async def pull_image(image_name: str) -> tuple[bool, str]:
+    """Pull a Docker image by name:tag. Returns (success, error_message)."""
+    import re as _re
+    # Basic validation: only allow image:tag format
+    if not _re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_./:@-]{0,254}$", image_name):
+        return False, "Invalid image name"
+
+    def _sync() -> tuple[bool, str]:
+        client = _client()
+        try:
+            repo, _, tag = image_name.rpartition(":")
+            if not repo:
+                repo = image_name
+                tag = "latest"
+            client.images.pull(repo, tag=tag or "latest")
+            logger.info("Pulled Docker image: {}", image_name)
+            return True, ""
+        except Exception as exc:
+            msg = str(exc)
+            logger.error("Failed to pull {}: {}", image_name, msg)
+            return False, msg
+
+    return await asyncio.to_thread(_sync)

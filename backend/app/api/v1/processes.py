@@ -26,6 +26,16 @@ async def kill_process(pid: int, body: KillRequest, _: AdminUser) -> dict:
     return {"killed": True, "pid": pid, "signal": body.signal}
 
 
+@router.get("/{pid}/environ")
+async def get_process_environ(pid: int, _: AdminUser) -> dict:
+    if pid <= 0:
+        raise HTTPException(status_code=400, detail="Invalid PID")
+    env, err = await process_service.get_process_environ(pid)
+    if env is None:
+        raise HTTPException(status_code=404, detail=err or f"Cannot read environ for PID {pid}")
+    return {"pid": pid, "environ": env}
+
+
 @router.get("/ports")
 async def get_open_ports(_: ActiveUser) -> list[dict]:
     return await process_service.get_open_ports()

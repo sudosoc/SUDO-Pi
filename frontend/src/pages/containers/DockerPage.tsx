@@ -3,7 +3,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   Play, Square, RefreshCw, Trash2, Terminal,
-  X, Cpu, MemoryStick, AlertCircle, Box, Layers, BarChart2,
+  X, Cpu, MemoryStick, AlertCircle, Box, Layers, BarChart2, Download,
 } from "lucide-react";
 import ReactECharts from "echarts-for-react";
 import { apiClient, getApiError } from "@/api/client";
@@ -13,6 +13,7 @@ import { SkeletonTable } from "@/components/ui/skeleton";
 import { PageHelp } from "@/components/ui/page-help";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/use-toast";
@@ -613,6 +614,31 @@ export default function DockerPage() {
     },
   });
 
+  const [pullImageName, setPullImageName] = useState("");
+
+  const pullMutation = useMutation({
+    mutationFn: async (image: string) => {
+      const { data } = await apiClient.post("/docker/images/pull", { image });
+      return data;
+    },
+    onSuccess: (_data, image) => {
+      toast({
+        title: "Image pulled successfully",
+        description: image,
+        variant: "success",
+      } as Parameters<typeof toast>[0]);
+      setPullImageName("");
+      refetchImages();
+    },
+    onError: (err: unknown) => {
+      toast({
+        title: "Pull failed",
+        description: getApiError(err),
+        variant: "destructive",
+      } as Parameters<typeof toast>[0]);
+    },
+  });
+
   return (
     <div className="p-6 space-y-4">
       <Tabs defaultValue="containers">
@@ -674,8 +700,31 @@ export default function DockerPage() {
         </TabsContent>
 
         <TabsContent value="images" className="mt-4">
-          <div className="flex items-center gap-2 mb-4">
-            <Button variant="outline" size="sm" onClick={() => refetchImages()}>
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <div className="relative flex-1 max-w-xs">
+              <Download className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+              <Input
+                placeholder="Pull image (e.g. nginx:latest)"
+                value={pullImageName}
+                onChange={(e) => setPullImageName(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && pullImageName.trim() && !pullMutation.isPending) {
+                    pullMutation.mutate(pullImageName.trim());
+                  }
+                }}
+                className="pl-8 h-8 text-xs"
+              />
+            </div>
+            <Button
+              size="sm"
+              onClick={() => pullMutation.mutate(pullImageName.trim())}
+              disabled={!pullImageName.trim() || pullMutation.isPending}
+              loading={pullMutation.isPending}
+            >
+              <Download className="w-3.5 h-3.5 mr-1" />
+              {pullMutation.isPending ? "Pulling…" : "Pull"}
+            </Button>
+            <Button variant="outline" size="sm" onClick={() => refetchImages()} disabled={pullMutation.isPending}>
               <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh
             </Button>
           </div>

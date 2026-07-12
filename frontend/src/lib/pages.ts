@@ -63,6 +63,7 @@ export const GATED_PAGES: PageDef[] = [
   { to: "/network-topology", label: "Network Topology", group: "Network" },
   { to: "/wake-on-lan", label: "Wake-on-LAN", group: "Network" },
   { to: "/reverse-proxy", label: "Reverse Proxy", group: "Network" },
+  { to: "/port-forwards", label: "Port Forwards", group: "Network" },
   // Hardware extras
   { to: "/smart-disk", label: "SMART Disks", group: "Hardware" },
   { to: "/ups", label: "UPS Monitor", group: "Hardware" },

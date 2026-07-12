@@ -389,6 +389,197 @@ async def kill_process(pid: int) -> None:
         raise PermissionError(f"Permission denied to kill PID {pid}") from exc
 
 
+async def get_cpu_freq_info() -> dict:
+    """Return current CPU frequency, governor, and available governors."""
+    from app.core.subprocess import run_cmd
+    from pathlib import Path
+
+    def _read(path: str) -> str:
+        try:
+            return Path(path).read_text().strip()
+        except Exception:
+            return ""
+
+    base = "/sys/devices/system/cpu/cpu0/cpufreq"
+    governor = _read(f"{base}/scaling_governor")
+    cur_freq_str = _read(f"{base}/scaling_cur_freq")
+    max_freq_str = _read(f"{base}/cpuinfo_max_freq")
+    min_freq_str = _read(f"{base}/cpuinfo_min_freq")
+    avail_str = _read(f"{base}/scaling_available_governors")
+
+    def _khz_to_mhz(s: str) -> float | None:
+        try:
+            return round(int(s) / 1000, 1)
+        except Exception:
+            return None
+
+    return {
+        "governor": governor or "unknown",
+        "available_governors": avail_str.split() if avail_str else [],
+        "cur_mhz": _khz_to_mhz(cur_freq_str),
+        "max_mhz": _khz_to_mhz(max_freq_str),
+        "min_mhz": _khz_to_mhz(min_freq_str),
+        "supported": bool(governor),
+    }
+
+
+async def set_cpu_governor(governor: str) -> bool:
+    """Write governor to all CPU core cpufreq paths."""
+    import glob as _glob
+    paths = _glob.glob("/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor")
+    if not paths:
+        return False
+    ok_count = 0
+    for path in paths:
+        try:
+            proc = await asyncio.create_subprocess_exec(
+                "sudo", "tee", path,
+                stdin=asyncio.subprocess.PIPE,
+                stdout=asyncio.subprocess.DEVNULL,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            await asyncio.wait_for(proc.communicate(input=governor.encode()), timeout=5.0)
+            if proc.returncode == 0:
+                ok_count += 1
+        except Exception:
+            continue
+    return ok_count > 0
+
+
+async def get_hardware_info() -> dict:
+    """Return Raspberry Pi hardware identity info."""
+    from pathlib import Path
+    from app.core.subprocess import run_cmd
+
+    info: dict = {}
+
+    # /proc/cpuinfo
+    try:
+        lines = Path("/proc/cpuinfo").read_text().splitlines()
+        for line in lines:
+            if ":" not in line:
+                continue
+            key, _, val = line.partition(":")
+            key = key.strip().lower().replace(" ", "_")
+            val = val.strip()
+            if key in ("hardware", "revision", "serial", "model"):
+                info[key] = val
+    except Exception:
+        pass
+
+    # vcgencmd commands
+    vcg = "/usr/bin/vcgencmd"
+    if Path(vcg).exists():
+        for flag, field in [
+            (["measure_temp"], "temperature"),
+            (["get_config", "gpu_mem"], "gpu_mem_mb"),
+            (["version"], "firmware"),
+        ]:
+            code, out, _ = await run_cmd([vcg] + flag, timeout=3.0)
+            if code == 0 and out.strip():
+                raw = out.strip()
+                if field == "temperature":
+                    import re as _re
+                    m = _re.search(r"temp=(\S+)", raw)
+                    info[field] = m.group(1) if m else raw
+                elif field == "gpu_mem_mb":
+                    import re as _re
+                    m = _re.search(r"gpu_mem=(\d+)", raw)
+                    info[field] = int(m.group(1)) if m else raw
+                else:
+                    info[field] = raw.splitlines()[0] if raw else ""
+
+        # Throttling status
+        code, out, _ = await run_cmd([vcg, "get_throttled"], timeout=3.0)
+        if code == 0 and out.strip():
+            import re as _re
+            m = _re.search(r"0x([0-9a-fA-F]+)", out)
+            if m:
+                throttle_val = int(m.group(1), 16)
+                info["throttled"] = throttle_val != 0
+                info["throttle_flags"] = {
+                    "under_voltage": bool(throttle_val & 0x1),
+                    "arm_freq_capped": bool(throttle_val & 0x2),
+                    "currently_throttled": bool(throttle_val & 0x4),
+                    "soft_temp_limit": bool(throttle_val & 0x8),
+                    "under_voltage_occurred": bool(throttle_val & 0x10000),
+                    "arm_freq_capped_occurred": bool(throttle_val & 0x20000),
+                    "throttling_occurred": bool(throttle_val & 0x40000),
+                    "soft_temp_occurred": bool(throttle_val & 0x80000),
+                }
+
+    # CPU count and architecture
+    import platform as _platform
+    info["arch"] = _platform.machine()
+    info["cpu_count"] = psutil.cpu_count(logical=True) or 1
+    info["cpu_cores"] = psutil.cpu_count(logical=False) or 1
+
+    return info
+
+
+async def get_boot_log(boot: int = 0, lines: int = 500) -> list[dict]:
+    """Return journal entries for the specified boot (0=current, 1=previous, …)."""
+    import json as _json
+    cmd = [
+        "sudo", "journalctl",
+        f"-b", f"-{boot}",
+        "-n", str(lines),
+        "--output=json",
+        "--no-pager",
+    ]
+    try:
+        proc = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.DEVNULL,
+        )
+        stdout, _ = await asyncio.wait_for(proc.communicate(), timeout=15.0)
+        entries = []
+        for line in stdout.decode(errors="replace").splitlines():
+            line = line.strip()
+            if line:
+                try:
+                    entries.append(_json.loads(line))
+                except _json.JSONDecodeError:
+                    pass
+        return entries
+    except Exception as exc:
+        logger.error("get_boot_log(boot={}): {}", boot, exc)
+        return []
+
+
+async def get_net_interfaces() -> list[dict]:
+    """Return per-interface cumulative byte counters from /proc/net/dev."""
+    from pathlib import Path
+    import time as _time
+
+    result = []
+    try:
+        lines = Path("/proc/net/dev").read_text().splitlines()
+        ts = _time.time()
+        for line in lines[2:]:
+            if ":" not in line:
+                continue
+            iface, _, rest = line.partition(":")
+            iface = iface.strip()
+            if iface == "lo":
+                continue
+            parts = rest.split()
+            if len(parts) < 9:
+                continue
+            result.append({
+                "iface": iface,
+                "rx_bytes": int(parts[0]),
+                "rx_packets": int(parts[1]),
+                "tx_bytes": int(parts[8]),
+                "tx_packets": int(parts[9]),
+                "ts": ts,
+            })
+    except Exception as exc:
+        logger.error("get_net_interfaces: {}", exc)
+    return result
+
+
 async def reboot_system() -> None:
     await asyncio.create_subprocess_exec("sudo", "reboot")
 

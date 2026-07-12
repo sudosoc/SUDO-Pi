@@ -5,7 +5,7 @@ import json
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, HTTPException, WebSocket, WebSocketDisconnect
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from fastapi import Query
 
@@ -19,6 +19,19 @@ router = APIRouter(prefix="/docker", tags=["docker"])
 class ResourceUpdate(BaseModel):
     cpu_cores: float = 0.0
     memory_mb: int = 0
+
+
+class PullImageRequest(BaseModel):
+    image: str
+
+    @field_validator("image")
+    @classmethod
+    def validate_image(cls, v: str) -> str:
+        import re as _re
+        v = v.strip()
+        if not v or not _re.match(r"^[a-zA-Z0-9][a-zA-Z0-9_./:@-]{0,254}$", v):
+            raise ValueError("Invalid image name")
+        return v
 
 
 @router.get("/containers")
@@ -107,6 +120,14 @@ async def get_container_stats_history(
 ) -> list[dict]:
     """Return resource-usage history for a container (last N minutes, default 60)."""
     return await docker_stats_service.get_history(db, container_id, minutes=minutes)
+
+
+@router.post("/images/pull", dependencies=[CsrfVerified])
+async def pull_image(body: PullImageRequest, _: AdminUser) -> dict:
+    ok, error = await docker_service.pull_image(body.image)
+    if not ok:
+        raise HTTPException(500, error or "Pull failed")
+    return {"pulled": True, "image": body.image}
 
 
 @router.get("/stats/latest")

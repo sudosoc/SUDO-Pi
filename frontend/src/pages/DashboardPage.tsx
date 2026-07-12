@@ -33,17 +33,19 @@ import { toast } from "@/components/ui/use-toast";
 
 // ─── Widget ordering ──────────────────────────────────────────────────────────
 
-type WidgetId = "health" | "gauges" | "stats" | "activity" | "services" | "processes" | "quick" | "status";
+type WidgetId = "health" | "gauges" | "stats" | "activity" | "services" | "processes" | "quick" | "status" | "notes" | "netif";
 
 const DEFAULT_ORDER: WidgetId[] = [
   "health",
   "gauges",
   "stats",
   "status",
+  "netif",
   "activity",
   "services",
   "processes",
   "quick",
+  "notes",
 ];
 
 const WIDGET_LABELS: Record<WidgetId, string> = {
@@ -55,6 +57,8 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   processes: "Process Table",
   quick:     "Quick Actions",
   status:    "Security & Network Status",
+  notes:     "Quick Notes",
+  netif:     "Network Interfaces",
 };
 
 const STORAGE_KEY = "dashboard-widget-order";
@@ -171,6 +175,171 @@ function useMetricsWebSocket() {
   }, [connect]);
 
   return { metrics, connected };
+}
+
+// ─── Quick Notes Widget ───────────────────────────────────────────────────────
+
+const NOTES_KEY = "dashboard-notes";
+
+function QuickNotes() {
+  const [text, setText] = useState(() => {
+    try { return localStorage.getItem(NOTES_KEY) ?? ""; } catch { return ""; }
+  });
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(text);
+
+  const save = () => {
+    setText(draft);
+    try { localStorage.setItem(NOTES_KEY, draft); } catch { /* ignore */ }
+    setEditing(false);
+  };
+
+  const cancel = () => {
+    setDraft(text);
+    setEditing(false);
+  };
+
+  return (
+    <Card className="h-full">
+      <CardHeader className="pb-2">
+        <div className="flex items-center justify-between">
+          <CardTitle className="text-sm flex items-center gap-2">
+            <FileJson className="w-4 h-4 text-primary" /> Quick Notes
+          </CardTitle>
+          {!editing && (
+            <Button variant="ghost" size="sm" className="h-6 text-xs text-muted-foreground" onClick={() => { setDraft(text); setEditing(true); }}>
+              Edit
+            </Button>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent className="pt-0">
+        {editing ? (
+          <div className="space-y-2">
+            <textarea
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              className="w-full h-36 text-xs font-mono rounded-md bg-secondary/30 border border-border px-3 py-2 resize-none focus:outline-none focus:ring-1 focus:ring-primary/40"
+              placeholder="Jot down IPs, commands, notes…"
+              autoFocus
+            />
+            <div className="flex gap-2">
+              <Button size="sm" className="h-7 text-xs" onClick={save}>
+                <Check className="w-3 h-3 mr-1" /> Save
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={cancel}>
+                Cancel
+              </Button>
+            </div>
+          </div>
+        ) : text ? (
+          <pre
+            className="text-xs font-mono whitespace-pre-wrap break-words text-muted-foreground/90 min-h-[80px] cursor-pointer hover:text-foreground transition-colors"
+            onClick={() => { setDraft(text); setEditing(true); }}
+          >
+            {text}
+          </pre>
+        ) : (
+          <div
+            className="flex flex-col items-center justify-center h-20 text-muted-foreground/40 cursor-pointer hover:text-muted-foreground/60 transition-colors"
+            onClick={() => { setDraft(""); setEditing(true); }}
+          >
+            <FileJson className="w-6 h-6 mb-1" />
+            <p className="text-xs">Click to add notes</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Network Interfaces Widget ────────────────────────────────────────────────
+
+interface IfaceStats {
+  iface: string;
+  rx_bytes: number;
+  tx_bytes: number;
+  ts: number;
+}
+
+function fmtRate(bytesPerSec: number): string {
+  if (bytesPerSec >= 1024 * 1024) return `${(bytesPerSec / 1024 / 1024).toFixed(1)} MB/s`;
+  if (bytesPerSec >= 1024) return `${(bytesPerSec / 1024).toFixed(0)} KB/s`;
+  return `${Math.round(bytesPerSec)} B/s`;
+}
+
+function NetInterfacesWidget() {
+  const prevRef = useRef<Record<string, IfaceStats>>({});
+  const [rates, setRates] = useState<Record<string, { rx: number; tx: number }>>({});
+
+  const { data: ifaces, isLoading } = useQuery<IfaceStats[]>({
+    queryKey: ["net-interfaces-live"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<IfaceStats[]>("/system/net-interfaces");
+      return Array.isArray(data) ? data : [];
+    },
+    refetchInterval: 3000,
+    staleTime: 0,
+  });
+
+  useEffect(() => {
+    if (!ifaces) return;
+    const newRates: Record<string, { rx: number; tx: number }> = {};
+    ifaces.forEach((cur) => {
+      const prev = prevRef.current[cur.iface];
+      if (prev) {
+        const dt = cur.ts - prev.ts;
+        if (dt > 0) {
+          newRates[cur.iface] = {
+            rx: Math.max(0, (cur.rx_bytes - prev.rx_bytes) / dt),
+            tx: Math.max(0, (cur.tx_bytes - prev.tx_bytes) / dt),
+          };
+        }
+      }
+      prevRef.current[cur.iface] = cur;
+    });
+    if (Object.keys(newRates).length > 0) {
+      setRates((prev) => ({ ...prev, ...newRates }));
+    }
+  }, [ifaces]);
+
+  return (
+    <Card className="h-full">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-sm flex items-center gap-2">
+          <Wifi className="w-4 h-4 text-primary" /> Network Interfaces
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-2">
+        {isLoading ? (
+          Array.from({ length: 3 }).map((_, i) => (
+            <div key={i} className="h-8 bg-muted rounded animate-pulse" />
+          ))
+        ) : !ifaces?.length ? (
+          <p className="text-xs text-muted-foreground text-center py-4">No interfaces found</p>
+        ) : (
+          ifaces.map((iface) => {
+            const r = rates[iface.iface];
+            return (
+              <div key={iface.iface} className="flex items-center gap-3 rounded-lg bg-secondary/20 px-3 py-2">
+                <span className="font-mono text-xs font-semibold w-12 shrink-0 truncate">{iface.iface}</span>
+                <div className="flex-1 grid grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center gap-1 text-green-400">
+                    <span className="text-[10px] text-muted-foreground">↓</span>
+                    <span className="font-mono tabular-nums">{r ? fmtRate(r.rx) : "—"}</span>
+                  </div>
+                  <div className="flex items-center gap-1 text-violet-400">
+                    <span className="text-[10px] text-muted-foreground">↑</span>
+                    <span className="font-mono tabular-nums">{r ? fmtRate(r.tx) : "—"}</span>
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        )}
+      </CardContent>
+    </Card>
+  );
 }
 
 // ─── Quick Actions ────────────────────────────────────────────────────────────
@@ -712,10 +881,12 @@ export default function DashboardPage() {
     ),
     stats: <SystemStats />,
     status: <StatusOverview />,
+    netif: <NetInterfacesWidget />,
     activity: <ActivityFeed />,
     services: <ServiceStatus />,
     processes: <ProcessTable />,
     quick: <QuickActions />,
+    notes: <QuickNotes />,
   };
 
   return (

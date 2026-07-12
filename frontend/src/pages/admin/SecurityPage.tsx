@@ -1,7 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useState, useEffect, useRef } from "react";
 import {
   ShieldCheck, ShieldAlert, Ban, RefreshCw, Trash2, LogOut,
-  Activity, AlertTriangle, Skull,
+  Activity, AlertTriangle, Skull, Globe,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -10,7 +11,56 @@ import { Badge } from "@/components/ui/badge";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "@/components/ui/use-toast";
-import { formatDate, formatRelative } from "@/lib/utils";
+import { formatDate, formatRelative, cn } from "@/lib/utils";
+
+// ─── GeoIP Hook ──────────────────────────────────────────────────────────────
+
+interface GeoInfo {
+  country: string;
+  countryCode: string;
+  isp: string;
+  status: "success" | "fail";
+}
+
+function useGeoIp(ips: string[]): Record<string, GeoInfo> {
+  const [cache, setCache] = useState<Record<string, GeoInfo>>({});
+  const fetchedRef = useRef<Set<string>>(new Set());
+
+  useEffect(() => {
+    const newIps = ips.filter((ip) => ip && !fetchedRef.current.has(ip));
+    if (newIps.length === 0) return;
+    newIps.forEach((ip) => fetchedRef.current.add(ip));
+
+    // Batch lookup with ip-api.com (free tier: max 100 per batch)
+    const chunks: string[][] = [];
+    for (let i = 0; i < newIps.length; i += 100) {
+      chunks.push(newIps.slice(i, i + 100));
+    }
+
+    const fetchChunk = async (chunk: string[]) => {
+      try {
+        const res = await fetch("http://ip-api.com/batch?fields=status,country,countryCode,isp,query", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(chunk.map((q) => ({ query: q }))),
+        });
+        if (!res.ok) return;
+        const data: (GeoInfo & { query: string })[] = await res.json();
+        setCache((prev) => {
+          const next = { ...prev };
+          data.forEach((d) => { next[d.query] = d; });
+          return next;
+        });
+      } catch {
+        // Silently ignore — GeoIP is a nice-to-have
+      }
+    };
+
+    chunks.forEach(fetchChunk);
+  }, [ips.join(",")]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return cache;
+}
 
 interface Fail2BanJail {
   name: string;
@@ -55,6 +105,7 @@ function HeatmapCell({ value, max }: { value: number; max: number }) {
 
 export default function SecurityPage() {
   const queryClient = useQueryClient();
+  const [geoExpanded, setGeoExpanded] = useState(false);
 
   const { data: fail2ban, isLoading: loadingFail2ban, refetch: refetchFail2ban } = useQuery({
     queryKey: ["fail2ban"],
@@ -112,6 +163,10 @@ export default function SecurityPage() {
   const heatmap = ssh?.heatmap ?? Array.from({ length: 7 }, () => Array(24).fill(0));
   const maxVal = Math.max(...heatmap.flat(), 1);
   const days = ["Today", "Yesterday", "2d ago", "3d ago", "4d ago", "5d ago", "6d ago"];
+
+  // Collect all banned IPs for GeoIP lookup
+  const allBannedIps = (fail2ban?.jails ?? []).flatMap((j) => j.banned_ips);
+  const geoMap = useGeoIp(geoExpanded ? allBannedIps : []);
 
   return (
     <div className="p-6 space-y-6">
@@ -180,9 +235,18 @@ export default function SecurityPage() {
 
         {/* ── Fail2Ban ──────────────────────────────────────────────────────── */}
         <TabsContent value="fail2ban" className="mt-4 space-y-4">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Button variant="outline" size="sm" onClick={() => refetchFail2ban()}>
               <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setGeoExpanded((v) => !v)}
+              className={cn(geoExpanded && "border-primary/40 text-primary")}
+            >
+              <Globe className="w-3.5 h-3.5 mr-1" />
+              {geoExpanded ? "Hide" : "Show"} GeoIP
             </Button>
           </div>
           {loadingFail2ban ? (
@@ -214,19 +278,31 @@ export default function SecurityPage() {
                     {jail.currently_failed} failing · {jail.total_banned} total banned
                   </p>
                   {jail.banned_ips.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                      {jail.banned_ips.map((ip) => (
-                        <div key={ip} className="flex items-center gap-1.5 bg-destructive/10 border border-destructive/20 rounded px-2 py-0.5 text-xs font-mono">
-                          <span className="text-destructive">{ip}</span>
-                          <button
-                            className="text-muted-foreground hover:text-foreground ml-1"
-                            onClick={() => unbanMutation.mutate({ jail: jail.name, ip })}
-                            title="Unban"
-                          >
-                            ×
-                          </button>
-                        </div>
-                      ))}
+                    <div className="space-y-1.5">
+                      {jail.banned_ips.map((ip) => {
+                        const geo = geoMap[ip];
+                        return (
+                          <div key={ip} className="flex items-center gap-2 bg-destructive/10 border border-destructive/20 rounded px-2 py-1 text-xs font-mono group">
+                            <span className="text-destructive">{ip}</span>
+                            {geoExpanded && (
+                              <span className="text-muted-foreground truncate">
+                                {geo?.status === "success"
+                                  ? `· ${geo.countryCode} — ${geo.isp}`
+                                  : geo
+                                  ? "· lookup failed"
+                                  : "· …"}
+                              </span>
+                            )}
+                            <button
+                              className="text-muted-foreground hover:text-foreground ml-auto shrink-0"
+                              onClick={() => unbanMutation.mutate({ jail: jail.name, ip })}
+                              title="Unban"
+                            >
+                              ×
+                            </button>
+                          </div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground">No banned IPs</p>

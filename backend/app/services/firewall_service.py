@@ -164,6 +164,126 @@ async def set_default(direction: str, policy: str) -> bool:
     return True
 
 
+async def get_port_forwards() -> list[dict]:
+    """List iptables NAT PREROUTING DNAT rules (port forwards)."""
+    code, out, _ = await _run(
+        ["sudo", "iptables", "-t", "nat", "-L", "PREROUTING", "-n", "--line-numbers", "-v"],
+        timeout=10.0,
+    )
+    if code != 0:
+        return []
+
+    rules: list[dict] = []
+    for line in out.splitlines():
+        line = line.strip()
+        # Only DNAT target lines
+        if "DNAT" not in line:
+            continue
+        parts = line.split()
+        if len(parts) < 2:
+            continue
+        try:
+            num = int(parts[0])
+        except ValueError:
+            continue
+
+        proto = ""
+        src_port = ""
+        dest_host = ""
+        dest_port = ""
+        comment = ""
+
+        # Extract proto (e.g. tcp, udp)
+        for i, p in enumerate(parts):
+            if p in ("tcp", "udp"):
+                proto = p
+                break
+
+        # dpt:PORT
+        import re as _re
+        dpt_m = _re.search(r"dpt:(\d+)", line)
+        if dpt_m:
+            src_port = dpt_m.group(1)
+
+        # to:HOST:PORT
+        to_m = _re.search(r"to:([^:]+):(\d+)", line)
+        if to_m:
+            dest_host = to_m.group(1)
+            dest_port = to_m.group(2)
+
+        # /* comment */
+        cmt_m = _re.search(r"/\*\s*(.+?)\s*\*/", line)
+        if cmt_m:
+            comment = cmt_m.group(1)
+
+        rules.append({
+            "num": num,
+            "proto": proto,
+            "src_port": src_port,
+            "dest_host": dest_host,
+            "dest_port": dest_port,
+            "comment": comment,
+        })
+
+    return rules
+
+
+async def add_port_forward(
+    proto: str, src_port: int, dest_host: str, dest_port: int, comment: str = ""
+) -> bool:
+    """Add an iptables DNAT rule for port forwarding."""
+    import re as _re
+
+    if proto not in ("tcp", "udp"):
+        return False
+    if not (1 <= src_port <= 65535 and 1 <= dest_port <= 65535):
+        return False
+    if not _re.match(r"^[\d.]{7,15}$", dest_host):
+        return False
+
+    cmd = [
+        "sudo", "iptables",
+        "-t", "nat",
+        "-A", "PREROUTING",
+        "-p", proto,
+        "--dport", str(src_port),
+        "-j", "DNAT",
+        "--to-destination", f"{dest_host}:{dest_port}",
+    ]
+    if comment.strip():
+        cmd += ["-m", "comment", "--comment", comment.strip()[:64]]
+
+    code, _, err = await _run(cmd, timeout=10.0)
+    if code != 0:
+        logger.error("Failed to add port forward: {}", err)
+        return False
+
+    # Also add MASQUERADE to allow forwarded traffic back
+    masq_cmd = [
+        "sudo", "iptables",
+        "-t", "nat",
+        "-A", "POSTROUTING",
+        "-j", "MASQUERADE",
+    ]
+    await _run(masq_cmd, timeout=10.0)
+
+    logger.info("Port forward added: {} {} -> {}:{}", proto, src_port, dest_host, dest_port)
+    return True
+
+
+async def delete_port_forward(line_num: int) -> bool:
+    """Delete an iptables PREROUTING rule by line number."""
+    code, _, err = await _run(
+        ["sudo", "iptables", "-t", "nat", "-D", "PREROUTING", str(line_num)],
+        timeout=10.0,
+    )
+    if code != 0:
+        logger.error("Failed to delete port forward #{}: {}", line_num, err)
+        return False
+    logger.info("Port forward #{} deleted", line_num)
+    return True
+
+
 async def reload_ufw() -> bool:
     code, _, err = await _run(["sudo", "ufw", "reload"], timeout=15.0)
     if code != 0:

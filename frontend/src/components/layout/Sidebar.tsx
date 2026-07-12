@@ -10,7 +10,7 @@ import {
   DownloadCloud, ShieldBan, LayoutGrid, Globe, Workflow, MonitorPlay, UserCog,
   Radar, LockKeyhole,
   DoorOpen, ScrollText, ArrowLeftRight, Share2,
-  Power, HeartPulse, BatteryCharging, Camera,
+  Power, HeartPulse, BatteryCharging, Camera, Shuffle,
   Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -80,6 +80,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/captive-portal",     icon: DoorOpen,         label: "Captive Portal",     roles: ["admin"] },
       { to: "/reverse-proxy",      icon: ArrowLeftRight,   label: "Reverse Proxy",      roles: ["admin", "operator"] },
       { to: "/wake-on-lan",        icon: Power,            label: "Wake-on-LAN",        roles: ["admin", "operator"] },
+      { to: "/port-forwards",      icon: Shuffle,          label: "Port Forwards",      roles: ["admin"] },
       { to: "/speedtest",          icon: Gauge,            label: "Speed Test" },
     ],
   },

@@ -10,7 +10,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   AlertTriangle, RefreshCw, Save, Server, Palette, Wand2,
   Rows3, Rows4, DownloadCloud, CheckCircle2, XCircle, Loader2, Terminal as TerminalIcon,
-  Check, ChevronDown, Globe2, Clock,
+  Check, ChevronDown, Globe2, Clock, Cpu, Zap, CircuitBoard,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { ThemeCustomizer } from "@/components/ThemeCustomizer";
@@ -342,6 +342,220 @@ function PiSystemCard() {
 }
 
 
+// ─── CPU Governor Card ────────────────────────────────────────────────────────
+
+interface CpuFreqInfo {
+  governor: string;
+  available_governors: string[];
+  cur_mhz: number | null;
+  max_mhz: number | null;
+  min_mhz: number | null;
+  supported: boolean;
+}
+
+const GOVERNOR_META: Record<string, { label: string; desc: string; color: string }> = {
+  performance:  { label: "Performance",  desc: "Maximum frequency, highest power draw",      color: "text-red-400" },
+  ondemand:     { label: "On-demand",    desc: "Scales up dynamically based on CPU load",    color: "text-amber-400" },
+  schedutil:    { label: "Schedutil",    desc: "Kernel scheduler-aware dynamic scaling",      color: "text-cyan-400" },
+  conservative: { label: "Conservative", desc: "Gradual frequency scaling, power-efficient", color: "text-green-400" },
+  powersave:    { label: "Powersave",    desc: "Minimum frequency, lowest power draw",       color: "text-blue-400" },
+  userspace:    { label: "Userspace",    desc: "Manual frequency control",                   color: "text-violet-400" },
+};
+
+function CpuGovernorCard() {
+  const qc = useQueryClient();
+
+  const { data, isLoading } = useQuery<CpuFreqInfo>({
+    queryKey: ["cpu-freq"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<CpuFreqInfo>("/system/cpu-freq");
+      return data;
+    },
+    staleTime: 10_000,
+    refetchInterval: 30_000,
+  });
+
+  const setGovernorMut = useMutation({
+    mutationFn: (governor: string) => apiClient.post("/system/cpu-governor", { governor }),
+    onSuccess: (_, governor) => {
+      toast({ title: `CPU governor set to "${governor}"`, variant: "success" } as { title: string; variant: "success" });
+      qc.invalidateQueries({ queryKey: ["cpu-freq"] });
+    },
+    onError: (err) => toast({ title: "Failed to set governor", description: getApiError(err), variant: "destructive" } as { title: string; description: string; variant: "destructive" }),
+  });
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardContent className="pt-5 space-y-3">
+          {[1, 2, 3].map((i) => <div key={i} className="h-4 bg-muted rounded animate-pulse" />)}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  if (!data?.supported) {
+    return (
+      <Card>
+        <CardHeader className="pb-2">
+          <CardTitle className="flex items-center gap-2 text-sm">
+            <Cpu className="w-4 h-4 text-primary" /> CPU Governor
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="text-sm text-muted-foreground">CPU frequency scaling is not available on this system.</p>
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const governors = data?.available_governors ?? [];
+  const current = data?.governor ?? "";
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <Cpu className="w-4 h-4 text-primary" /> CPU Governor
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Current stats row */}
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Current", value: data?.cur_mhz != null ? `${data.cur_mhz} MHz` : "—", icon: Zap },
+            { label: "Max",     value: data?.max_mhz != null ? `${data.max_mhz} MHz` : "—", icon: Cpu },
+            { label: "Min",     value: data?.min_mhz != null ? `${data.min_mhz} MHz` : "—", icon: Cpu },
+          ].map(({ label, value }) => (
+            <div key={label} className="rounded-lg bg-secondary/30 px-3 py-2 text-center">
+              <p className="text-xs text-muted-foreground">{label}</p>
+              <p className="text-sm font-bold font-mono tabular-nums mt-0.5">{value}</p>
+            </div>
+          ))}
+        </div>
+
+        {/* Governor buttons */}
+        <div className="space-y-1.5">
+          {governors.map((gov) => {
+            const meta = GOVERNOR_META[gov] ?? { label: gov, desc: "", color: "text-foreground" };
+            const isActive = gov === current;
+            return (
+              <button
+                key={gov}
+                onClick={() => !isActive && setGovernorMut.mutate(gov)}
+                disabled={isActive || setGovernorMut.isPending}
+                className={cn(
+                  "w-full flex items-center gap-3 px-3 py-2.5 rounded-lg border text-left transition-colors",
+                  isActive
+                    ? "border-primary/50 bg-primary/10"
+                    : "border-border hover:border-primary/30 hover:bg-secondary/30"
+                )}
+              >
+                <div className={cn("w-2 h-2 rounded-full shrink-0", isActive ? "bg-primary" : "bg-muted-foreground/30")} />
+                <div className="flex-1 min-w-0">
+                  <span className={cn("text-sm font-medium", meta.color)}>{meta.label}</span>
+                  {meta.desc && (
+                    <p className="text-xs text-muted-foreground/70 truncate mt-0.5">{meta.desc}</p>
+                  )}
+                </div>
+                {isActive && (
+                  <Badge variant="secondary" className="text-[10px] shrink-0">Active</Badge>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ─── Pi Hardware Identity Card ────────────────────────────────────────────────
+
+interface HardwareInfo {
+  hardware?: string;
+  revision?: string;
+  serial?: string;
+  model?: string;
+  temperature?: string;
+  gpu_mem_mb?: number;
+  firmware?: string;
+  arch?: string;
+  cpu_count?: number;
+  cpu_cores?: number;
+  throttled?: boolean;
+  throttle_flags?: Record<string, boolean>;
+}
+
+function PiHardwareCard() {
+  const { data, isLoading } = useQuery<HardwareInfo>({
+    queryKey: ["pi-hardware"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<HardwareInfo>("/system/hardware");
+      return data;
+    },
+    staleTime: 60_000,
+  });
+
+  const throttleWarnings = data?.throttle_flags
+    ? Object.entries(data.throttle_flags).filter(([, v]) => v).map(([k]) =>
+        k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase())
+      )
+    : [];
+
+  const rows: { label: string; value: string | undefined }[] = [
+    { label: "Model",        value: data?.model },
+    { label: "Hardware",     value: data?.hardware },
+    { label: "Revision",     value: data?.revision },
+    { label: "Serial",       value: data?.serial },
+    { label: "Architecture", value: data?.arch },
+    { label: "CPU Cores",    value: data?.cpu_count != null ? `${data.cpu_cores} cores (${data.cpu_count} threads)` : undefined },
+    { label: "GPU Memory",   value: data?.gpu_mem_mb != null ? `${data.gpu_mem_mb} MB` : undefined },
+    { label: "Temperature",  value: data?.temperature },
+    { label: "Firmware",     value: data?.firmware ? data.firmware.slice(0, 80) : undefined },
+  ].filter((r) => r.value);
+
+  return (
+    <Card>
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-sm">
+          <CircuitBoard className="w-4 h-4 text-primary" /> Pi Hardware Identity
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-3">
+        {isLoading ? (
+          <div className="space-y-2">
+            {[1, 2, 3, 4].map((i) => <div key={i} className="h-4 bg-muted rounded animate-pulse" />)}
+          </div>
+        ) : (
+          <>
+            {throttleWarnings.length > 0 && (
+              <div className="rounded-lg border border-amber-500/20 bg-amber-500/5 px-3 py-2 flex items-start gap-2">
+                <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-xs font-medium text-amber-400">Throttling detected</p>
+                  <p className="text-xs text-amber-300/70 mt-0.5">{throttleWarnings.join(", ")}</p>
+                </div>
+              </div>
+            )}
+            <div className="divide-y divide-border/40">
+              {rows.map(({ label, value }) => (
+                <div key={label} className="flex justify-between gap-4 py-2 text-sm">
+                  <span className="text-muted-foreground shrink-0">{label}</span>
+                  <span className="font-mono text-xs text-right truncate">{value}</span>
+                </div>
+              ))}
+            </div>
+            {rows.length === 0 && (
+              <p className="text-sm text-muted-foreground text-center py-4">Hardware info not available on this system.</p>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 export default function SettingsPage() {
   const { themeId, customThemes, density, setThemeId, setDensity } = useTheme();
   const [showCustomizer, setShowCustomizer] = useState(false);
@@ -620,6 +834,12 @@ export default function SettingsPage() {
 
       {/* ── Pi System Configuration ────────────────────────────────────────── */}
       <PiSystemCard />
+
+      {/* ── CPU Governor ───────────────────────────────────────────────────── */}
+      <CpuGovernorCard />
+
+      {/* ── Pi Hardware Identity ───────────────────────────────────────────── */}
+      <PiHardwareCard />
 
       {/* ── Danger Zone ────────────────────────────────────────────────────── */}
       <Card>

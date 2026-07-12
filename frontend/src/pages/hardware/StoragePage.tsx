@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   HardDrive, Usb, BarChart3, RefreshCw, LogOut, MountainSnow,
   Unplug, Trash2, Activity, AlertTriangle, Database,
+  FolderSearch, ChevronRight, Folder, FileText,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -479,6 +480,145 @@ function IoStatsTab() {
   );
 }
 
+// ─── Analyze Tab ─────────────────────────────────────────────────────────────
+
+interface DirEntry {
+  path: string;
+  name: string;
+  size_bytes: number;
+  is_dir: boolean;
+}
+
+function AnalyzeTab() {
+  const [path, setPath] = useState("/");
+  const [inputPath, setInputPath] = useState("/");
+  const [breadcrumbs, setBreadcrumbs] = useState<string[]>(["/"]);
+
+  const { data: entries, isLoading, isFetching } = useQuery<DirEntry[]>({
+    queryKey: ["storage-analyze", path],
+    queryFn: async () => {
+      const { data } = await apiClient.get(`/storage/analyze?path=${encodeURIComponent(path)}&depth=1`);
+      return Array.isArray(data) ? data : [];
+    },
+    staleTime: 30_000,
+  });
+
+  const navigate = (dirPath: string) => {
+    setPath(dirPath);
+    setInputPath(dirPath);
+    setBreadcrumbs((prev) => {
+      const idx = prev.indexOf(dirPath);
+      if (idx >= 0) return prev.slice(0, idx + 1);
+      return [...prev, dirPath];
+    });
+  };
+
+  const handleGo = () => {
+    const p = inputPath.trim() || "/";
+    setPath(p);
+    setBreadcrumbs([p]);
+  };
+
+  const maxSize = Math.max(...(entries ?? []).map((e) => e.size_bytes), 1);
+
+  return (
+    <div className="space-y-4">
+      {/* Path input */}
+      <Card>
+        <CardContent className="pt-4 pb-4">
+          <div className="flex gap-2">
+            <Input
+              value={inputPath}
+              onChange={(e) => setInputPath(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleGo()}
+              placeholder="/"
+              className="h-8 font-mono text-sm"
+            />
+            <Button size="sm" className="h-8" onClick={handleGo} loading={isFetching}>
+              <FolderSearch className="w-3.5 h-3.5 mr-1" /> Analyze
+            </Button>
+          </div>
+
+          {/* Breadcrumbs */}
+          {breadcrumbs.length > 1 && (
+            <div className="flex items-center gap-1 mt-2 flex-wrap">
+              {breadcrumbs.map((crumb, i) => (
+                <div key={i} className="flex items-center gap-1">
+                  {i > 0 && <ChevronRight className="w-3 h-3 text-muted-foreground" />}
+                  <button
+                    onClick={() => navigate(crumb)}
+                    className="text-xs font-mono text-primary hover:underline truncate max-w-[12rem]"
+                  >
+                    {i === 0 ? "/" : crumb.split("/").pop() || crumb}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Results */}
+      {isLoading ? (
+        <div className="space-y-2">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <div key={i} className="h-12 rounded-lg bg-muted animate-pulse" />
+          ))}
+        </div>
+      ) : !entries?.length ? (
+        <Card>
+          <CardContent className="flex flex-col items-center py-12 text-muted-foreground">
+            <FolderSearch className="w-10 h-10 mb-3 opacity-30" />
+            <p className="text-sm">No entries found at <span className="font-mono">{path}</span></p>
+          </CardContent>
+        </Card>
+      ) : (
+        <Card>
+          <CardContent className="p-0">
+            <ScrollArea className="max-h-[50vh]">
+              <div className="divide-y divide-border/40">
+                {entries.map((entry, i) => {
+                  const pct = entry.size_bytes / maxSize;
+                  return (
+                    <div
+                      key={i}
+                      className={cn(
+                        "flex items-center gap-3 px-4 py-2.5 relative",
+                        entry.is_dir && "cursor-pointer hover:bg-secondary/30 transition-colors"
+                      )}
+                      onClick={() => entry.is_dir && navigate(entry.path)}
+                    >
+                      {/* Bar background */}
+                      <div
+                        className="absolute inset-y-0 left-0 bg-primary/5 pointer-events-none"
+                        style={{ width: `${pct * 100}%` }}
+                      />
+                      {entry.is_dir ? (
+                        <Folder className="w-4 h-4 text-amber-400 shrink-0 relative z-10" />
+                      ) : (
+                        <FileText className="w-4 h-4 text-muted-foreground shrink-0 relative z-10" />
+                      )}
+                      <span className="text-sm font-mono flex-1 min-w-0 truncate relative z-10">
+                        {entry.name}
+                      </span>
+                      <span className="text-sm font-mono font-bold tabular-nums shrink-0 relative z-10">
+                        {fmtBytes(entry.size_bytes)}
+                      </span>
+                      {entry.is_dir && (
+                        <ChevronRight className="w-4 h-4 text-muted-foreground shrink-0 relative z-10" />
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </ScrollArea>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function StoragePage() {
@@ -662,6 +802,10 @@ export default function StoragePage() {
               <Usb className="w-3.5 h-3.5 mr-1.5" />
               USB Devices
             </TabsTrigger>
+            <TabsTrigger value="analyze">
+              <FolderSearch className="w-3.5 h-3.5 mr-1.5" />
+              Analyze
+            </TabsTrigger>
           </TabsList>
           <Button size="icon-sm" variant="ghost" onClick={invalidateAll} title="Refresh all">
             <RefreshCw className="w-3.5 h-3.5" />
@@ -791,6 +935,11 @@ export default function StoragePage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* ── Analyze ───────────────────────────────────────────── */}
+        <TabsContent value="analyze" className="mt-4">
+          <AnalyzeTab />
         </TabsContent>
       </Tabs>
     </div>

@@ -29,6 +29,13 @@ export const systemApi = {
     return data;
   },
 
+  getBootLog: async (boot = 0, lines = 500): Promise<Record<string, string>[]> => {
+    const { data } = await apiClient.get<Record<string, string>[]>(
+      `/system/boot-log?boot=${boot}&lines=${lines}`,
+    );
+    return Array.isArray(data) ? data : [];
+  },
+
   killProcess: async (pid: number): Promise<void> => {
     await apiClient.post(`/system/processes/${pid}/kill`);
   },

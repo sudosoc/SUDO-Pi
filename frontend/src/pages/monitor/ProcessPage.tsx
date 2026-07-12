@@ -1,8 +1,8 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, Fragment } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import {
   Search, RefreshCw, XCircle, ChevronUp, ChevronDown, Server,
-  Cpu, User,
+  Cpu, User, Code2, X as XIcon,
 } from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +54,10 @@ const processApi = {
   },
   kill: async (pid: number, signal = 15): Promise<void> => {
     await apiClient.post(`/processes/${pid}/kill`, { signal });
+  },
+  environ: async (pid: number): Promise<Record<string, string>> => {
+    const { data } = await apiClient.get(`/processes/${pid}/environ`);
+    return (data as { environ: Record<string, string> }).environ ?? {};
   },
 };
 
@@ -168,6 +172,87 @@ function KillModal({
   );
 }
 
+// ─── Environment Inspector Panel ──────────────────────────────────────────────
+
+function EnvPanel({ pid }: { pid: number }) {
+  const [envSearch, setEnvSearch] = useState("");
+
+  const { data: environ, isLoading, error } = useQuery<Record<string, string>>({
+    queryKey: ["process-environ", pid],
+    queryFn:  () => processApi.environ(pid),
+    staleTime: 30_000,
+    retry: false,
+  });
+
+  const entries = useMemo(() => {
+    if (!environ) return [];
+    const q = envSearch.trim().toLowerCase();
+    return Object.entries(environ)
+      .filter(([k, v]) => !q || k.toLowerCase().includes(q) || v.toLowerCase().includes(q))
+      .sort((a, b) => a[0].localeCompare(b[0]));
+  }, [environ, envSearch]);
+
+  return (
+    <tr>
+      <td colSpan={8} className="p-0 bg-background/50">
+        <div className="mx-3 my-2 rounded-lg border border-cyan-500/20 bg-cyan-950/10 overflow-hidden">
+          <div className="flex items-center gap-2 px-3 py-2 border-b border-cyan-500/20 bg-card/40">
+            <Code2 className="w-3.5 h-3.5 text-cyan-400 shrink-0" />
+            <span className="text-xs font-semibold text-cyan-300">Environment — PID {pid}</span>
+            {!isLoading && !error && (
+              <span className="text-xs text-muted-foreground">
+                {Object.keys(environ ?? {}).length} variables
+              </span>
+            )}
+            {!isLoading && !error && (
+              <div className="flex-1 relative ml-2">
+                <Search className="absolute left-2 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
+                <Input
+                  value={envSearch}
+                  onChange={(e) => setEnvSearch(e.target.value)}
+                  placeholder="Filter variables…"
+                  className="pl-7 h-6 text-xs"
+                />
+              </div>
+            )}
+          </div>
+          <div className="max-h-64 overflow-y-auto">
+            {isLoading ? (
+              <div className="flex items-center gap-2 text-xs text-muted-foreground px-4 py-3">
+                <RefreshCw className="w-3.5 h-3.5 animate-spin text-cyan-400" />
+                Loading environment…
+              </div>
+            ) : error ? (
+              <p className="text-xs text-destructive px-4 py-3">
+                Permission denied — cannot read <code>/proc/{pid}/environ</code>
+              </p>
+            ) : entries.length === 0 ? (
+              <p className="text-xs text-muted-foreground text-center py-4">
+                {envSearch ? `No variables match "${envSearch}"` : "No environment variables found"}
+              </p>
+            ) : (
+              <table className="w-full text-xs">
+                <tbody>
+                  {entries.map(([key, val]) => (
+                    <tr key={key} className="border-b border-border/20 last:border-0 hover:bg-secondary/20 group">
+                      <td className="px-3 py-1 font-mono text-cyan-300 align-top w-56 max-w-[220px]">
+                        <span className="truncate block">{key}</span>
+                      </td>
+                      <td className="px-3 py-1 font-mono text-foreground/80 break-all">
+                        {val || <em className="text-muted-foreground not-italic">(empty)</em>}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
 export default function ProcessPage() {
@@ -177,6 +262,7 @@ export default function ProcessPage() {
   const [sortKey, setSortKey]       = useState<SortKey>("cpu");
   const [sortDir, setSortDir]       = useState<SortDir>("desc");
   const [killTarget, setKillTarget] = useState<Process | null>(null);
+  const [envPid, setEnvPid]         = useState<number | null>(null);
 
   const { data: processes = [], isLoading, dataUpdatedAt } = useQuery({
     queryKey: ["processes"],
@@ -354,60 +440,84 @@ export default function ProcessPage() {
                     <th className="text-left text-xs text-muted-foreground font-medium py-2 px-3 w-24 hidden md:table-cell">RSS</th>
                     <th className="text-left text-xs text-muted-foreground font-medium py-2 px-3 w-20 hidden lg:table-cell">State</th>
                     <SortTh label="Command" sortKey="command" current={sortKey} dir={sortDir} onSort={handleSort} />
-                    <th className="py-2 px-3 w-10" />
+                    <th className="py-2 px-3 w-20" />
                   </tr>
                 </thead>
                 <tbody>
                   {filtered.map((proc) => (
-                    <tr
-                      key={proc.pid}
-                      className="border-b border-border/30 last:border-0 hover:bg-secondary/30 transition-colors"
-                    >
-                      <td className="px-3 py-1.5 font-mono text-xs text-muted-foreground">{proc.pid}</td>
-                      <td className="px-3 py-1.5">
-                        <span className="flex items-center gap-1 text-xs">
-                          <User className="w-3 h-3 text-muted-foreground/60 shrink-0" />
-                          <span className="truncate max-w-[80px]">{proc.user}</span>
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <span className={cn("font-bold tabular-nums text-xs", cpuColor(proc.cpu))}>
-                          {proc.cpu.toFixed(1)}%
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <span className={cn("font-medium tabular-nums text-xs", proc.mem > 10 ? "text-orange-400" : proc.mem > 5 ? "text-yellow-400" : "text-foreground")}>
-                          {proc.mem.toFixed(1)}%
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5 text-xs text-muted-foreground hidden md:table-cell">
-                        {fmtKb(proc.rss)}
-                      </td>
-                      <td className="px-3 py-1.5 hidden lg:table-cell">
-                        <Badge
-                          variant="outline"
-                          className={cn("text-[10px] border-0 px-1.5 py-0", statColor(proc.stat))}
-                        >
-                          {statLabel(proc.stat)}
-                        </Badge>
-                      </td>
-                      <td className="px-3 py-1.5 max-w-[240px]">
-                        <span className="font-mono text-xs truncate block" title={proc.command}>
-                          {proc.command}
-                        </span>
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <Button
-                          size="icon-sm"
-                          variant="ghost"
-                          className="h-6 w-6 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
-                          onClick={() => setKillTarget(proc)}
-                          title="Kill process"
-                        >
-                          <XCircle className="w-3.5 h-3.5" />
-                        </Button>
-                      </td>
-                    </tr>
+                    <Fragment key={proc.pid}>
+                      <tr
+                        className={cn(
+                          "border-b border-border/30 hover:bg-secondary/30 transition-colors",
+                          envPid === proc.pid ? "bg-cyan-950/10 border-cyan-500/20" : "last:border-0",
+                        )}
+                      >
+                        <td className="px-3 py-1.5 font-mono text-xs text-muted-foreground">{proc.pid}</td>
+                        <td className="px-3 py-1.5">
+                          <span className="flex items-center gap-1 text-xs">
+                            <User className="w-3 h-3 text-muted-foreground/60 shrink-0" />
+                            <span className="truncate max-w-[80px]">{proc.user}</span>
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <span className={cn("font-bold tabular-nums text-xs", cpuColor(proc.cpu))}>
+                            {proc.cpu.toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <span className={cn("font-medium tabular-nums text-xs", proc.mem > 10 ? "text-orange-400" : proc.mem > 5 ? "text-yellow-400" : "text-foreground")}>
+                            {proc.mem.toFixed(1)}%
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5 text-xs text-muted-foreground hidden md:table-cell">
+                          {fmtKb(proc.rss)}
+                        </td>
+                        <td className="px-3 py-1.5 hidden lg:table-cell">
+                          <Badge
+                            variant="outline"
+                            className={cn("text-[10px] border-0 px-1.5 py-0", statColor(proc.stat))}
+                          >
+                            {statLabel(proc.stat)}
+                          </Badge>
+                        </td>
+                        <td className="px-3 py-1.5 max-w-[240px]">
+                          <span className="font-mono text-xs truncate block" title={proc.command}>
+                            {proc.command}
+                          </span>
+                        </td>
+                        <td className="px-3 py-1.5">
+                          <div className="flex items-center gap-0.5">
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              className={cn(
+                                "h-6 w-6 transition-colors",
+                                envPid === proc.pid
+                                  ? "text-cyan-400 bg-cyan-500/10 hover:bg-cyan-500/20"
+                                  : "text-muted-foreground/50 hover:text-cyan-400 hover:bg-cyan-500/10",
+                              )}
+                              onClick={() => setEnvPid(envPid === proc.pid ? null : proc.pid)}
+                              title="Inspect environment variables"
+                            >
+                              {envPid === proc.pid
+                                ? <XIcon className="w-3.5 h-3.5" />
+                                : <Code2 className="w-3.5 h-3.5" />
+                              }
+                            </Button>
+                            <Button
+                              size="icon-sm"
+                              variant="ghost"
+                              className="h-6 w-6 text-muted-foreground/50 hover:text-destructive hover:bg-destructive/10"
+                              onClick={() => setKillTarget(proc)}
+                              title="Kill process"
+                            >
+                              <XCircle className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </td>
+                      </tr>
+                      {envPid === proc.pid && <EnvPanel pid={proc.pid} />}
+                    </Fragment>
                   ))}
                 </tbody>
               </table>

@@ -1,5 +1,7 @@
+import re
+
 from fastapi import APIRouter, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 from app.core.dependencies import ActiveUser, AdminUser, CsrfVerified
 from app.services import firewall_service
@@ -19,6 +21,35 @@ class AddRuleBody(BaseModel):
 class DefaultPolicyBody(BaseModel):
     direction: str   # "incoming" | "outgoing" | "routed"
     policy: str      # "allow" | "deny" | "reject"
+
+
+class PortForwardBody(BaseModel):
+    proto: str
+    src_port: int
+    dest_host: str
+    dest_port: int
+    comment: str = ""
+
+    @field_validator("proto")
+    @classmethod
+    def validate_proto(cls, v: str) -> str:
+        if v not in ("tcp", "udp"):
+            raise ValueError("proto must be tcp or udp")
+        return v
+
+    @field_validator("src_port", "dest_port")
+    @classmethod
+    def validate_port(cls, v: int) -> int:
+        if not (1 <= v <= 65535):
+            raise ValueError("Port must be 1-65535")
+        return v
+
+    @field_validator("dest_host")
+    @classmethod
+    def validate_dest_host(cls, v: str) -> str:
+        if not re.match(r"^(\d{1,3}\.){3}\d{1,3}$", v):
+            raise ValueError("dest_host must be a valid IPv4 address")
+        return v
 
 
 @router.get("/status")
@@ -71,6 +102,31 @@ async def delete_rule(number: int, _: AdminUser = None):
     if not ok:
         raise HTTPException(500, f"Failed to delete rule #{number}")
     return {"deleted": True, "number": number}
+
+
+@router.get("/port-forwards")
+async def get_port_forwards(_: AdminUser = None) -> list[dict]:
+    return await firewall_service.get_port_forwards()
+
+
+@router.post("/port-forwards", dependencies=[CsrfVerified])
+async def add_port_forward(body: PortForwardBody, _: AdminUser = None) -> dict:
+    ok = await firewall_service.add_port_forward(
+        body.proto, body.src_port, body.dest_host, body.dest_port, body.comment
+    )
+    if not ok:
+        raise HTTPException(500, "Failed to add port forward rule")
+    return {"added": True}
+
+
+@router.delete("/port-forwards/{line_num}", dependencies=[CsrfVerified])
+async def delete_port_forward(line_num: int, _: AdminUser = None) -> dict:
+    if line_num < 1:
+        raise HTTPException(400, "Invalid rule number")
+    ok = await firewall_service.delete_port_forward(line_num)
+    if not ok:
+        raise HTTPException(500, f"Failed to delete port forward #{line_num}")
+    return {"deleted": True, "num": line_num}
 
 
 @router.post("/default", dependencies=[CsrfVerified])
