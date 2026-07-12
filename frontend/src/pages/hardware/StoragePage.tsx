@@ -490,9 +490,10 @@ interface DirEntry {
 }
 
 function AnalyzeTab() {
-  const [path, setPath] = useState("/");
+  const [path, setPath]           = useState("/");
   const [inputPath, setInputPath] = useState("/");
   const [breadcrumbs, setBreadcrumbs] = useState<string[]>(["/"]);
+  const [enabled, setEnabled]     = useState(false);
 
   const { data: entries, isLoading, isFetching } = useQuery<DirEntry[]>({
     queryKey: ["storage-analyze", path],
@@ -501,11 +502,13 @@ function AnalyzeTab() {
       return Array.isArray(data) ? data : [];
     },
     staleTime: 30_000,
+    enabled,
   });
 
   const navigate = (dirPath: string) => {
     setPath(dirPath);
     setInputPath(dirPath);
+    setEnabled(true);
     setBreadcrumbs((prev) => {
       const idx = prev.indexOf(dirPath);
       if (idx >= 0) return prev.slice(0, idx + 1);
@@ -517,6 +520,7 @@ function AnalyzeTab() {
     const p = inputPath.trim() || "/";
     setPath(p);
     setBreadcrumbs([p]);
+    setEnabled(true);
   };
 
   const maxSize = Math.max(...(entries ?? []).map((e) => e.size_bytes), 1);
@@ -565,6 +569,13 @@ function AnalyzeTab() {
             <div key={i} className="h-12 rounded-lg bg-muted animate-pulse" />
           ))}
         </div>
+      ) : !enabled ? (
+        <Card>
+          <CardContent className="flex flex-col items-center py-12 text-muted-foreground">
+            <FolderSearch className="w-10 h-10 mb-3 opacity-30" />
+            <p className="text-sm">Enter a path above and click <strong className="text-foreground">Analyze</strong> to scan disk usage</p>
+          </CardContent>
+        </Card>
       ) : !entries?.length ? (
         <Card>
           <CardContent className="flex flex-col items-center py-12 text-muted-foreground">

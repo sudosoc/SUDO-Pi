@@ -336,21 +336,23 @@ async def analyze_directory(path: str, depth: int = 1) -> list[dict]:
     if not _Path(resolved).is_dir():
         return []
 
-    # Use du with max-depth to get sizes per subdirectory
+    # --exclude takes a basename pattern, NOT an absolute path.
+    # Using "/proc" would never match anything; use "proc", "sys", "dev".
     cmd = [
         "sudo", "du",
         "--max-depth", str(depth),
         "--block-size=1",
-        "--exclude=/proc",
-        "--exclude=/sys",
-        "--exclude=/dev",
+        "--exclude=proc",
+        "--exclude=sys",
+        "--exclude=dev",
+        "--exclude=run",
         resolved,
     ]
-    code, out, _ = await _run(cmd, timeout=60.0)
+    code, out, _ = await _run(cmd, timeout=90.0)
     if code != 0:
         # Try without sudo for non-root directories
         cmd_no_sudo = [c for c in cmd if c != "sudo"]
-        code, out, _ = await _run(cmd_no_sudo, timeout=60.0)
+        code, out, _ = await _run(cmd_no_sudo, timeout=90.0)
         if code != 0:
             return []
 
