@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
+import { Link } from "react-router-dom";
 import { useSystemStore } from "@/stores/systemStore";
 import { SystemStats } from "@/components/dashboard/SystemStats";
 import { ProcessTable } from "@/components/dashboard/ProcessTable";
@@ -32,12 +33,13 @@ import { toast } from "@/components/ui/use-toast";
 
 // ─── Widget ordering ──────────────────────────────────────────────────────────
 
-type WidgetId = "health" | "gauges" | "stats" | "activity" | "services" | "processes" | "quick";
+type WidgetId = "health" | "gauges" | "stats" | "activity" | "services" | "processes" | "quick" | "status";
 
 const DEFAULT_ORDER: WidgetId[] = [
   "health",
   "gauges",
   "stats",
+  "status",
   "activity",
   "services",
   "processes",
@@ -52,6 +54,7 @@ const WIDGET_LABELS: Record<WidgetId, string> = {
   services:  "Service Status",
   processes: "Process Table",
   quick:     "Quick Actions",
+  status:    "Security & Network Status",
 };
 
 const STORAGE_KEY = "dashboard-widget-order";
@@ -171,6 +174,114 @@ function useMetricsWebSocket() {
 }
 
 // ─── Quick Actions ────────────────────────────────────────────────────────────
+
+// ─── Security & Network Status Widget ────────────────────────────────────────
+
+function StatusOverview() {
+  const { data: fw } = useQuery({
+    queryKey: ["firewall"],
+    queryFn: async () => {
+      const { data } = await apiClient.get("/security/firewall");
+      return data as { enabled: boolean };
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const { data: sessions } = useQuery({
+    queryKey: ["active-sessions"],
+    queryFn: async () => {
+      const { data } = await apiClient.get("/security/sessions");
+      return data as unknown[];
+    },
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+
+  const { data: portal } = useQuery({
+    queryKey: ["captive-portal-status"],
+    queryFn: async () => {
+      const { data } = await apiClient.get("/captive-portal/status");
+      return data as { enabled: boolean; allowed_macs: string[] };
+    },
+    staleTime: 30_000,
+    refetchInterval: 30_000,
+  });
+
+  const { data: tunnels } = useQuery({
+    queryKey: ["vpn-wireguard"],
+    queryFn: async () => {
+      const { data } = await apiClient.get("/vpn/wireguard");
+      return data as { name: string; is_active: boolean }[];
+    },
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+  });
+
+  const activeTunnels = (tunnels ?? []).filter((t) => t.is_active).length;
+
+  const tiles: { label: string; value: string | number; ok: boolean; to: string }[] = [
+    {
+      label: "Firewall",
+      value: fw?.enabled ? "Active" : fw === undefined ? "…" : "Inactive",
+      ok: fw?.enabled ?? true,
+      to: "/firewall",
+    },
+    {
+      label: "Sessions",
+      value: sessions?.length ?? "…",
+      ok: (sessions?.length ?? 0) <= 5,
+      to: "/security",
+    },
+    {
+      label: "Captive Portal",
+      value: portal?.enabled ? "Active" : portal === undefined ? "…" : "Off",
+      ok: portal?.enabled !== false,
+      to: "/captive-portal",
+    },
+    {
+      label: "VPN Tunnels",
+      value: activeTunnels === 0 && tunnels !== undefined ? "None" : activeTunnels || "…",
+      ok: activeTunnels > 0 || tunnels === undefined,
+      to: "/vpn",
+    },
+  ];
+
+  return (
+    <Card>
+      <CardHeader className="pb-2">
+        <CardTitle className="flex items-center gap-1.5 text-sm">
+          <Wifi className="w-3.5 h-3.5 text-muted-foreground" />
+          Security & Network
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="grid grid-cols-2 gap-2">
+          {tiles.map((tile) => (
+            <Link
+              key={tile.label}
+              to={tile.to}
+              className="flex flex-col gap-1.5 p-3 rounded-lg bg-secondary/40 hover:bg-secondary/70 transition-colors border border-border/40 hover:border-primary/30"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-[10px] text-muted-foreground uppercase tracking-wide">{tile.label}</span>
+                <span className={cn("w-1.5 h-1.5 rounded-full shrink-0", tile.ok ? "bg-success" : "bg-destructive")}
+                  style={tile.ok ? { boxShadow: "0 0 5px hsl(var(--success) / 0.7)" } : undefined}
+                />
+              </div>
+              <span className={cn(
+                "text-sm font-semibold tabular-nums",
+                tile.ok ? "text-foreground" : "text-destructive",
+              )}>
+                {tile.value}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
 
 function QuickActions() {
   const [confirmAction, setConfirmAction] = useState<"reboot" | "shutdown" | null>(null);
@@ -600,6 +711,7 @@ export default function DashboardPage() {
       />
     ),
     stats: <SystemStats />,
+    status: <StatusOverview />,
     activity: <ActivityFeed />,
     services: <ServiceStatus />,
     processes: <ProcessTable />,

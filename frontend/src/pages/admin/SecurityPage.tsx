@@ -1,5 +1,8 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { ShieldCheck, ShieldAlert, Ban, RefreshCw, Trash2, LogOut, Activity } from "lucide-react";
+import {
+  ShieldCheck, ShieldAlert, Ban, RefreshCw, Trash2, LogOut,
+  Activity, AlertTriangle, Skull,
+} from "lucide-react";
 import { apiClient } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,15 +31,26 @@ interface ActiveSession {
   user_agent?: string;
 }
 
-interface AuditLog {
-  id: number;
-  timestamp: string;
-  username: string;
-  action: string;
-  resource: string;
-  ip_address: string;
-  status: "success" | "failure";
-  detail: string;
+interface SshAttempts {
+  total_attempts: number;
+  unique_ips: number;
+  heatmap: number[][];
+  top_ips: { ip: string; count: number }[];
+}
+
+function HeatmapCell({ value, max }: { value: number; max: number }) {
+  const intensity = max > 0 ? value / max : 0;
+  const alpha = intensity * 0.85 + (intensity > 0 ? 0.08 : 0);
+  return (
+    <div
+      title={`${value} attempts`}
+      className="w-5 h-4 rounded-sm shrink-0"
+      style={{
+        background: `hsl(0 72% 58% / ${alpha.toFixed(2)})`,
+        border: "1px solid hsl(0 0% 100% / 0.05)",
+      }}
+    />
+  );
 }
 
 export default function SecurityPage() {
@@ -59,20 +73,13 @@ export default function SecurityPage() {
     },
   });
 
-  const { data: audit, isLoading: loadingAudit, refetch: refetchAudit } = useQuery({
-    queryKey: ["audit-logs"],
+  const { data: ssh, isLoading: sshLoading } = useQuery<SshAttempts>({
+    queryKey: ["ssh-attempts"],
     queryFn: async () => {
-      const { data } = await apiClient.get("/security/audit?limit=100");
-      return data as { items: AuditLog[]; total: number };
+      const { data } = await apiClient.get<SshAttempts>("/security/ssh-attempts");
+      return data;
     },
-  });
-
-  const { data: fw } = useQuery({
-    queryKey: ["firewall"],
-    queryFn: async () => {
-      const { data } = await apiClient.get("/security/firewall");
-      return data as { enabled: boolean; rules: { chain: string; target: string; proto: string; source: string; destination: string; comment: string }[] };
-    },
+    staleTime: 60_000,
   });
 
   const unbanMutation = useMutation({
@@ -102,8 +109,13 @@ export default function SecurityPage() {
     },
   });
 
+  const heatmap = ssh?.heatmap ?? Array.from({ length: 7 }, () => Array(24).fill(0));
+  const maxVal = Math.max(...heatmap.flat(), 1);
+  const days = ["Today", "Yesterday", "2d ago", "3d ago", "4d ago", "5d ago", "6d ago"];
+
   return (
     <div className="p-6 space-y-6">
+      {/* Stat cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
         <Card>
           <CardContent className="pt-4">
@@ -147,12 +159,12 @@ export default function SecurityPage() {
         <Card>
           <CardContent className="pt-4">
             <div className="flex items-center gap-3">
-              <div className={`w-9 h-9 rounded-lg ${fw?.enabled ? "bg-success/10" : "bg-destructive/10"} flex items-center justify-center`}>
-                <ShieldAlert className={`w-5 h-5 ${fw?.enabled ? "text-success" : "text-destructive"}`} />
+              <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center">
+                <ShieldAlert className="w-5 h-5 text-amber-400" />
               </div>
               <div>
-                <p className="text-sm font-bold">{fw?.enabled ? "Active" : "Inactive"}</p>
-                <p className="text-xs text-muted-foreground">Firewall</p>
+                <p className="text-2xl font-bold tabular-nums text-amber-400">{ssh?.total_attempts ?? "—"}</p>
+                <p className="text-xs text-muted-foreground">SSH Attacks (7d)</p>
               </div>
             </div>
           </CardContent>
@@ -163,10 +175,10 @@ export default function SecurityPage() {
         <TabsList>
           <TabsTrigger value="fail2ban">Fail2Ban</TabsTrigger>
           <TabsTrigger value="sessions">Sessions</TabsTrigger>
-          <TabsTrigger value="firewall">Firewall</TabsTrigger>
-          <TabsTrigger value="audit">Audit Log</TabsTrigger>
+          <TabsTrigger value="intrusion">Intrusion Detection</TabsTrigger>
         </TabsList>
 
+        {/* ── Fail2Ban ──────────────────────────────────────────────────────── */}
         <TabsContent value="fail2ban" className="mt-4 space-y-4">
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetchFail2ban()}>
@@ -225,6 +237,7 @@ export default function SecurityPage() {
           )}
         </TabsContent>
 
+        {/* ── Sessions ──────────────────────────────────────────────────────── */}
         <TabsContent value="sessions" className="mt-4 space-y-4">
           <div className="flex items-center gap-2">
             <Button variant="outline" size="sm" onClick={() => refetchSessions()}>
@@ -283,117 +296,99 @@ export default function SecurityPage() {
           </Card>
         </TabsContent>
 
-        <TabsContent value="firewall" className="mt-4">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <CardTitle>iptables Rules</CardTitle>
-                <Badge variant={fw?.enabled ? "success" : "muted"}>{fw?.enabled ? "Enabled" : "Disabled"}</Badge>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <ScrollArea className="h-96">
-                <table className="w-full text-xs font-mono">
-                  <thead className="sticky top-0 bg-card border-b border-border">
-                    <tr>
-                      <th className="text-left px-4 py-2 text-muted-foreground">Chain</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground">Target</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground">Proto</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground">Source</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground">Destination</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground hidden md:table-cell">Comment</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(fw?.rules ?? []).map((rule, i) => (
-                      <tr key={i} className="border-b border-border/30 hover:bg-secondary/20">
-                        <td className="px-4 py-1.5 text-muted-foreground">{rule.chain}</td>
-                        <td className="px-4 py-1.5">
-                          <span className={rule.target === "ACCEPT" ? "text-success" : rule.target === "DROP" ? "text-destructive" : "text-warning"}>
-                            {rule.target}
-                          </span>
-                        </td>
-                        <td className="px-4 py-1.5">{rule.proto}</td>
-                        <td className="px-4 py-1.5">{rule.source}</td>
-                        <td className="px-4 py-1.5">{rule.destination}</td>
-                        <td className="px-4 py-1.5 text-muted-foreground hidden md:table-cell">{rule.comment}</td>
-                      </tr>
-                    ))}
-                    {!fw?.rules?.length && (
-                      <tr>
-                        <td colSpan={6} className="text-center py-10 text-muted-foreground">No rules loaded</td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </ScrollArea>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="audit" className="mt-4 space-y-4">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetchAudit()}>
-              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh
-            </Button>
-            <span className="text-xs text-muted-foreground ml-auto">{audit?.total ?? 0} total events</span>
+        {/* ── Intrusion Detection ───────────────────────────────────────────── */}
+        <TabsContent value="intrusion" className="mt-4 space-y-6">
+          {/* Summary stats */}
+          <div className="grid grid-cols-2 gap-4">
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Total SSH Attempts (7d)</p>
+                <p className="text-3xl font-bold mt-1 text-amber-400 tabular-nums">{ssh?.total_attempts ?? "—"}</p>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardContent className="pt-4">
+                <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Unique Attacker IPs</p>
+                <p className="text-3xl font-bold mt-1 tabular-nums">{ssh?.unique_ips ?? "—"}</p>
+              </CardContent>
+            </Card>
           </div>
+
+          {/* SSH Brute-Force Heatmap */}
           <Card>
-            <CardContent className="p-0">
-              <ScrollArea className="h-[calc(100vh-340px)]">
-                <table className="w-full text-sm">
-                  <thead className="sticky top-0 bg-card border-b border-border">
-                    <tr>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Time</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">User</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Action</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs">Resource</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium text-xs hidden md:table-cell">IP</th>
-                      <th className="text-center px-4 py-2 text-muted-foreground font-medium text-xs">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {loadingAudit
-                      ? Array.from({ length: 10 }).map((_, i) => (
-                          <tr key={i} className="border-b border-border/50">
-                            {Array.from({ length: 6 }).map((_, j) => (
-                              <td key={j} className="px-4 py-2">
-                                <div className="h-3.5 bg-muted rounded animate-pulse" />
-                              </td>
-                            ))}
-                          </tr>
-                        ))
-                      : (audit?.items ?? []).map((log) => (
-                          <tr key={log.id} className="border-b border-border/50 hover:bg-secondary/20">
-                            <td className="px-4 py-2 text-muted-foreground text-xs tabular-nums whitespace-nowrap">
-                              {formatRelative(log.timestamp)}
-                            </td>
-                            <td className="px-4 py-2 font-medium text-xs">{log.username}</td>
-                            <td className="px-4 py-2 text-xs font-mono">{log.action}</td>
-                            <td className="px-4 py-2 text-muted-foreground text-xs truncate max-w-[140px]">{log.resource}</td>
-                            <td className="px-4 py-2 text-muted-foreground text-xs font-mono hidden md:table-cell">{log.ip_address}</td>
-                            <td className="px-4 py-2 text-center">
-                              <Badge
-                                variant={log.status === "success" ? "success" : "destructive"}
-                                className="text-[10px]"
-                              >
-                                {log.status}
-                              </Badge>
-                            </td>
-                          </tr>
+            <CardHeader className="pb-2">
+              <CardTitle className="flex items-center gap-2 text-sm">
+                <AlertTriangle className="w-4 h-4 text-amber-400" />
+                SSH Brute-Force Heatmap — Last 7 Days
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {sshLoading ? (
+                <div className="h-28 bg-muted animate-pulse rounded-lg" />
+              ) : (
+                <div className="overflow-x-auto">
+                  <div className="space-y-1.5 min-w-[640px]">
+                    {/* Hour labels */}
+                    <div className="flex items-center gap-1 pl-20">
+                      {Array.from({ length: 24 }, (_, h) => (
+                        <div key={h} className="w-5 text-center text-[9px] text-muted-foreground/50 shrink-0">
+                          {h % 6 === 0 ? `${h}h` : ""}
+                        </div>
+                      ))}
+                    </div>
+                    {heatmap.map((row, di) => (
+                      <div key={di} className="flex items-center gap-1">
+                        <span className="text-[10px] text-muted-foreground/60 w-16 text-right shrink-0 pr-2">
+                          {days[di]}
+                        </span>
+                        {row.map((val, hi) => (
+                          <HeatmapCell key={hi} value={val} max={maxVal} />
                         ))}
-                    {(!loadingAudit && !audit?.items?.length) && (
-                      <tr>
-                        <td colSpan={6} className="text-center py-12 text-muted-foreground">
-                          No audit events
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </ScrollArea>
+                      </div>
+                    ))}
+                    {/* Legend */}
+                    <div className="flex items-center gap-2 mt-2 justify-end">
+                      <span className="text-[10px] text-muted-foreground/60">Less</span>
+                      {[0, 0.2, 0.4, 0.7, 1].map((alpha) => (
+                        <div
+                          key={alpha}
+                          className="w-4 h-3 rounded-sm"
+                          style={{ background: `hsl(0 72% 58% / ${alpha * 0.85 + (alpha > 0 ? 0.08 : 0)})` }}
+                        />
+                      ))}
+                      <span className="text-[10px] text-muted-foreground/60">More</span>
+                    </div>
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
+
+          {/* Top Attacking IPs */}
+          {(ssh?.top_ips?.length ?? 0) > 0 && (
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Top Attacking IPs — Last 7 Days</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-2">
+                {(ssh?.top_ips ?? []).slice(0, 10).map((row) => {
+                  const pct = Math.round((row.count / (ssh?.total_attempts ?? 1)) * 100);
+                  return (
+                    <div key={row.ip} className="flex items-center gap-3">
+                      <Skull className="w-3 h-3 text-red-400/60 shrink-0" />
+                      <span className="font-mono text-xs w-36 shrink-0 text-muted-foreground/80">{row.ip}</span>
+                      <div className="flex-1 bg-muted/50 rounded-full h-1.5 overflow-hidden">
+                        <div className="h-full bg-red-500/60 rounded-full" style={{ width: `${pct}%` }} />
+                      </div>
+                      <span className="text-xs font-mono text-red-400 w-16 text-right shrink-0 tabular-nums">
+                        {row.count.toLocaleString()}
+                      </span>
+                    </div>
+                  );
+                })}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
       </Tabs>
     </div>

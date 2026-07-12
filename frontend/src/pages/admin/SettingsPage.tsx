@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiClient, getApiError } from "@/api/client";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -10,7 +10,7 @@ import { useConfirm } from "@/components/ui/confirm-dialog";
 import {
   AlertTriangle, RefreshCw, Save, Server, Palette, Wand2,
   Rows3, Rows4, DownloadCloud, CheckCircle2, XCircle, Loader2, Terminal as TerminalIcon,
-  Check, ChevronDown,
+  Check, ChevronDown, Globe2, Clock,
 } from "lucide-react";
 import { useTheme } from "@/contexts/ThemeContext";
 import { ThemeCustomizer } from "@/components/ThemeCustomizer";
@@ -183,6 +183,164 @@ const densities = [
 ];
 
 const CATEGORY_LABELS = { dark: "Dark", light: "Light", special: "Special" } as const;
+
+// ─── Pi System Configuration ──────────────────────────────────────────────────
+
+interface SystemConfig {
+  hostname: string;
+  timezone: string;
+  ntp_service: string;
+  ntp_enabled: boolean;
+}
+
+function PiSystemCard() {
+  const qc = useQueryClient();
+  const [hostnameInput, setHostnameInput] = useState("");
+  const [timezoneInput, setTimezoneInput] = useState("");
+
+  const { data: config, isLoading: configLoading } = useQuery<SystemConfig>({
+    queryKey: ["system-config"],
+    queryFn: async () => {
+      const { data } = await apiClient.get<SystemConfig>("/system/config");
+      return data;
+    },
+    staleTime: 30_000,
+  });
+
+  const hostnameMut = useMutation({
+    mutationFn: (hostname: string) => apiClient.post("/system/hostname", { hostname }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["system-config"] });
+      setHostnameInput("");
+      toast({ title: "Hostname updated", variant: "success" } as { title: string; variant: "success" });
+    },
+    onError: (e) => toast({ title: "Failed", description: getApiError(e), variant: "destructive" } as { title: string; description: string; variant: "destructive" }),
+  });
+
+  const timezoneMut = useMutation({
+    mutationFn: (timezone: string) => apiClient.post("/system/timezone", { timezone }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["system-config"] });
+      setTimezoneInput("");
+      toast({ title: "Timezone updated", variant: "success" } as { title: string; variant: "success" });
+    },
+    onError: (e) => toast({ title: "Failed", description: getApiError(e), variant: "destructive" } as { title: string; description: string; variant: "destructive" }),
+  });
+
+  const ntpMut = useMutation({
+    mutationFn: (enabled: boolean) => apiClient.post("/system/ntp", { enabled }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["system-config"] }),
+    onError: (e) => toast({ title: "Failed", description: getApiError(e), variant: "destructive" } as { title: string; description: string; variant: "destructive" }),
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-1.5 justify-between">
+          <div className="flex items-center gap-1.5">
+            <Server className="w-3.5 h-3.5" /> Pi System Configuration
+          </div>
+          <button
+            className="text-muted-foreground/50 hover:text-foreground transition-colors"
+            onClick={() => qc.invalidateQueries({ queryKey: ["system-config"] })}
+            title="Refresh"
+          >
+            <RefreshCw className={cn("w-3.5 h-3.5", configLoading && "animate-spin")} />
+          </button>
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-5">
+        {configLoading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <div key={i} className="h-10 bg-muted rounded animate-pulse" />
+            ))}
+          </div>
+        ) : (
+          <>
+            {/* Hostname */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <Server className="w-3 h-3" /> Hostname
+                <span className="font-mono text-foreground/70 ml-1">{config?.hostname}</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={hostnameInput}
+                  onChange={(e) => setHostnameInput(e.target.value)}
+                  placeholder={config?.hostname ?? "raspberry"}
+                  className="h-8 text-sm font-mono"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!hostnameInput.trim() || hostnameMut.isPending}
+                  loading={hostnameMut.isPending}
+                  onClick={() => hostnameMut.mutate(hostnameInput.trim())}
+                >
+                  <Save className="w-3.5 h-3.5 mr-1" /> Apply
+                </Button>
+              </div>
+            </div>
+
+            {/* Timezone */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
+                <Globe2 className="w-3 h-3" /> Timezone
+                <span className="font-mono text-foreground/70 ml-1">{config?.timezone}</span>
+              </label>
+              <div className="flex items-center gap-2">
+                <Input
+                  value={timezoneInput}
+                  onChange={(e) => setTimezoneInput(e.target.value)}
+                  placeholder={config?.timezone ?? "UTC"}
+                  className="h-8 text-sm font-mono"
+                />
+                <Button
+                  variant="outline"
+                  size="sm"
+                  disabled={!timezoneInput.trim() || timezoneMut.isPending}
+                  loading={timezoneMut.isPending}
+                  onClick={() => timezoneMut.mutate(timezoneInput.trim())}
+                >
+                  <Save className="w-3.5 h-3.5 mr-1" /> Apply
+                </Button>
+              </div>
+              <p className="text-[11px] text-muted-foreground/60">e.g. Europe/London, America/New_York, Asia/Dubai</p>
+            </div>
+
+            {/* NTP */}
+            <div className="flex items-center justify-between p-3 rounded-lg border border-border bg-secondary/20">
+              <div className="flex items-center gap-3">
+                <Clock className="w-4 h-4 text-muted-foreground" />
+                <div>
+                  <p className="text-sm font-medium">NTP Time Sync</p>
+                  <p className="text-xs text-muted-foreground">
+                    {config?.ntp_service ? `via ${config.ntp_service}` : "Network time synchronization"}
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <Badge variant={config?.ntp_enabled ? "success" : "muted"}>
+                  {config?.ntp_enabled ? "Enabled" : "Disabled"}
+                </Badge>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  loading={ntpMut.isPending}
+                  onClick={() => ntpMut.mutate(!config?.ntp_enabled)}
+                >
+                  {config?.ntp_enabled ? "Disable" : "Enable"}
+                </Button>
+              </div>
+            </div>
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 
 export default function SettingsPage() {
   const { themeId, customThemes, density, setThemeId, setDensity } = useTheme();
@@ -459,6 +617,9 @@ export default function SettingsPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* ── Pi System Configuration ────────────────────────────────────────── */}
+      <PiSystemCard />
 
       {/* ── Danger Zone ────────────────────────────────────────────────────── */}
       <Card>

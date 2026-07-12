@@ -1,3 +1,4 @@
+import { useState, useCallback } from "react";
 import { NavLink, useLocation, Link } from "react-router-dom";
 import {
   Bluetooth, Box, ChevronLeft,
@@ -8,8 +9,9 @@ import {
   Monitor, Server, Gauge, BarChart2, Layers, Store, Archive, Stethoscope,
   DownloadCloud, ShieldBan, LayoutGrid, Globe, Workflow, MonitorPlay, UserCog,
   Radar, LockKeyhole,
-  DoorOpen, ScrollText, ArrowLeftRight, ShieldAlert, Share2,
+  DoorOpen, ScrollText, ArrowLeftRight, Share2,
   Power, HeartPulse, BatteryCharging, Camera,
+  Star,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { canAccessPage } from "@/lib/pages";
@@ -29,6 +31,21 @@ interface NavGroup {
   items: NavItem[];
 }
 
+function usePinnedItems() {
+  const [pinned, setPinned] = useState<string[]>(() => {
+    try { return JSON.parse(localStorage.getItem("sidebar-pinned") ?? "[]") as string[]; }
+    catch { return []; }
+  });
+  const toggle = useCallback((to: string) => {
+    setPinned((prev) => {
+      const next = prev.includes(to) ? prev.filter((p) => p !== to) : [...prev, to];
+      localStorage.setItem("sidebar-pinned", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+  return { pinned, toggle };
+}
+
 const NAV_GROUPS: NavGroup[] = [
   {
     label: null,
@@ -43,6 +60,7 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/processes",   icon: Server,      label: "Processes" },
       { to: "/metrics",     icon: Activity,    label: "Metrics" },
       { to: "/logs",        icon: FileText,    label: "Logs" },
+      { to: "/timeline",    icon: Clock,       label: "Timeline",    roles: ["admin"] },
       { to: "/alerts",      icon: Bell,        label: "Alerts",      roles: ["admin"] },
       { to: "/automations", icon: Workflow,    label: "Automations", roles: ["admin"] },
       { to: "/diagnostics", icon: Stethoscope, label: "Diagnostics", roles: ["admin", "operator"] },
@@ -59,7 +77,6 @@ const NAV_GROUPS: NavGroup[] = [
       { to: "/network-topology",   icon: Share2,           label: "Topology",           roles: ["admin", "operator"] },
       { to: "/dns",                icon: Globe,            label: "DNS & DHCP",         roles: ["admin"] },
       { to: "/vpn",                icon: Network,          label: "VPN",                roles: ["admin", "operator"] },
-      { to: "/firewall",           icon: Flame,            label: "Firewall",           roles: ["admin"] },
       { to: "/captive-portal",     icon: DoorOpen,         label: "Captive Portal",     roles: ["admin"] },
       { to: "/reverse-proxy",      icon: ArrowLeftRight,   label: "Reverse Proxy",      roles: ["admin", "operator"] },
       { to: "/wake-on-lan",        icon: Power,            label: "Wake-on-LAN",        roles: ["admin", "operator"] },
@@ -99,17 +116,22 @@ const NAV_GROUPS: NavGroup[] = [
     ],
   },
   {
+    label: "Security",
+    items: [
+      { to: "/security",   icon: Shield,       label: "Security",   roles: ["admin"] },
+      { to: "/audit-log",  icon: ScrollText,   label: "Audit Log",  roles: ["admin"] },
+      { to: "/firewall",   icon: Flame,        label: "Firewall",   roles: ["admin"] },
+      { to: "/tls",        icon: LockKeyhole,  label: "TLS Certs",  roles: ["admin"] },
+    ],
+  },
+  {
     label: "Admin",
     items: [
-      { to: "/users",                icon: Users,          label: "Dashboard Users",    roles: ["admin"] },
-      { to: "/system-users",         icon: UserCog,        label: "Pi Users",           roles: ["admin"] },
-      { to: "/security",             icon: Shield,         label: "Security",           roles: ["admin"] },
-      { to: "/intrusion-detection",  icon: ShieldAlert,    label: "Intrusion Detection", roles: ["admin"] },
-      { to: "/audit-log",            icon: ScrollText,     label: "Audit Log",          roles: ["admin"] },
-      { to: "/tls",                  icon: LockKeyhole,    label: "TLS Certs",          roles: ["admin"] },
-      { to: "/backup",               icon: Archive,        label: "Backup",             roles: ["admin"] },
-      { to: "/updates",              icon: DownloadCloud,  label: "Updates",            roles: ["admin"] },
-      { to: "/settings",             icon: Settings,       label: "Settings",           roles: ["admin"] },
+      { to: "/users",        icon: Users,         label: "Dashboard Users",  roles: ["admin"] },
+      { to: "/system-users", icon: UserCog,       label: "Pi Users",         roles: ["admin"] },
+      { to: "/backup",       icon: Archive,       label: "Backup",           roles: ["admin"] },
+      { to: "/updates",      icon: DownloadCloud, label: "Updates",          roles: ["admin"] },
+      { to: "/settings",     icon: Settings,      label: "Settings",         roles: ["admin"] },
     ],
   },
 ];
@@ -122,6 +144,7 @@ interface SidebarProps {
 export function Sidebar({ collapsed, onToggle }: SidebarProps) {
   const { user, logout } = useAuthStore();
   const location = useLocation();
+  const { pinned, toggle: togglePin } = usePinnedItems();
 
   const handleLogout = async () => {
     try { await authApi.logout(); } finally {
@@ -129,6 +152,8 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       window.location.href = "/login";
     }
   };
+
+  const allItems = NAV_GROUPS.flatMap((g) => g.items);
 
   const visibleGroups = NAV_GROUPS
     .map((group) => ({
@@ -140,6 +165,14 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
       ),
     }))
     .filter((group) => group.items.length > 0);
+
+  const pinnedItems = pinned
+    .map((to) => allItems.find((item) => item.to === to))
+    .filter((item): item is NavItem =>
+      item !== undefined &&
+      (!item.roles || (user?.role ? item.roles.includes(user.role) : false)) &&
+      canAccessPage(item.to, user?.allowed_pages)
+    );
 
   const isItemActive = (to: string) =>
     to === "/"
@@ -208,6 +241,41 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
         className="flex-1 overflow-y-auto py-2 overflow-x-visible"
         style={collapsed ? { overflowX: "visible" } : undefined}
       >
+        {/* Pinned group */}
+        {!collapsed && pinnedItems.length > 0 && (
+          <div>
+            <p className="nav-section flex items-center gap-1">
+              <Star className="w-2.5 h-2.5 text-amber-400 fill-amber-400" />
+              Pinned
+            </p>
+            <div className="space-y-px">
+              {pinnedItems.map((item) => {
+                const Icon = item.icon;
+                const active = isItemActive(item.to);
+                return (
+                  <div key={`pin-${item.to}`} className="group/nav relative flex items-center">
+                    <NavLink
+                      to={item.to}
+                      className={cn("sidebar-item flex-1", active && "active")}
+                    >
+                      <Icon className={cn("w-[15px] h-[15px] shrink-0", active ? "text-primary" : "text-muted-foreground/70")} />
+                      <span className="truncate">{item.label}</span>
+                    </NavLink>
+                    <button
+                      onClick={(e) => { e.preventDefault(); togglePin(item.to); }}
+                      className="absolute right-1.5 opacity-0 group-hover/nav:opacity-100 transition-opacity p-1 rounded hover:bg-secondary/80"
+                      title="Unpin"
+                    >
+                      <Star className="w-3 h-3 text-amber-400 fill-amber-400" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="mx-3 my-2 border-t border-border/30" />
+          </div>
+        )}
+
         {visibleGroups.map((group, gi) => (
           <div key={group.label ?? `g${gi}`}>
             {group.label && !collapsed && (
@@ -220,23 +288,39 @@ export function Sidebar({ collapsed, onToggle }: SidebarProps) {
               {group.items.map((item) => {
                 const Icon = item.icon;
                 const active = isItemActive(item.to);
-                return (
+                const isPinned = pinned.includes(item.to);
+                return collapsed ? (
                   <NavLink
                     key={item.to}
                     to={item.to}
-                    className={cn(
-                      "sidebar-item",
-                      active && "active",
-                      collapsed && "justify-center px-0 mx-1.5"
-                    )}
-                    data-tooltip={collapsed ? item.label : undefined}
+                    className={cn("sidebar-item", active && "active", "justify-center px-0 mx-1.5")}
+                    data-tooltip={item.label}
                   >
-                    <Icon className={cn(
-                      "w-[15px] h-[15px] shrink-0 transition-colors",
-                      active ? "text-primary" : "text-muted-foreground/70"
-                    )} />
-                    {!collapsed && <span className="truncate">{item.label}</span>}
+                    <Icon className={cn("w-[15px] h-[15px] shrink-0", active ? "text-primary" : "text-muted-foreground/70")} />
                   </NavLink>
+                ) : (
+                  <div key={item.to} className="group/nav relative flex items-center">
+                    <NavLink
+                      to={item.to}
+                      className={cn("sidebar-item flex-1", active && "active")}
+                    >
+                      <Icon className={cn("w-[15px] h-[15px] shrink-0", active ? "text-primary" : "text-muted-foreground/70")} />
+                      <span className="truncate">{item.label}</span>
+                    </NavLink>
+                    <button
+                      onClick={(e) => { e.preventDefault(); togglePin(item.to); }}
+                      className={cn(
+                        "absolute right-1.5 transition-opacity p-1 rounded hover:bg-secondary/80",
+                        isPinned ? "opacity-100" : "opacity-0 group-hover/nav:opacity-100"
+                      )}
+                      title={isPinned ? "Unpin" : "Pin to top"}
+                    >
+                      <Star className={cn(
+                        "w-3 h-3",
+                        isPinned ? "text-amber-400 fill-amber-400" : "text-muted-foreground/50"
+                      )} />
+                    </button>
+                  </div>
                 );
               })}
             </div>

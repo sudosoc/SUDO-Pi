@@ -17,6 +17,7 @@ export const GATED_PAGES: PageDef[] = [
   { to: "/processes", label: "Processes", group: "Monitor" },
   { to: "/metrics", label: "Metrics", group: "Monitor" },
   { to: "/logs", label: "Logs", group: "Monitor" },
+  { to: "/timeline", label: "Timeline", group: "Monitor" },
   { to: "/alerts", label: "Alerts", group: "Monitor" },
   { to: "/diagnostics", label: "Diagnostics", group: "Monitor" },
   // Network
@@ -26,7 +27,6 @@ export const GATED_PAGES: PageDef[] = [
   { to: "/device-control", label: "Device Control", group: "Network" },
   { to: "/network-scanner", label: "Network Scanner", group: "Network" },
   { to: "/vpn", label: "VPN", group: "Network" },
-  { to: "/firewall", label: "Firewall", group: "Network" },
   { to: "/speedtest", label: "Speed Test", group: "Network" },
   { to: "/dns", label: "DNS", group: "Network" },
   // Apps
@@ -47,13 +47,14 @@ export const GATED_PAGES: PageDef[] = [
   { to: "/cron", label: "Cron Jobs", group: "Tools" },
   { to: "/ssh", label: "SSH", group: "Tools" },
   { to: "/automations", label: "Automations", group: "Tools" },
+  // Security
+  { to: "/security", label: "Security", group: "Security" },
+  { to: "/audit-log", label: "Audit Log", group: "Security" },
+  { to: "/firewall", label: "Firewall", group: "Security" },
+  { to: "/tls", label: "TLS Certs", group: "Security" },
   // Admin
   { to: "/users", label: "Dashboard Users", group: "Admin" },
   { to: "/system-users", label: "Pi Users", group: "Admin" },
-  { to: "/security", label: "Security", group: "Admin" },
-  { to: "/intrusion-detection", label: "Intrusion Detection", group: "Admin" },
-  { to: "/audit-log", label: "Audit Log", group: "Admin" },
-  { to: "/tls", label: "TLS Certs", group: "Admin" },
   { to: "/backup", label: "Backup", group: "Admin" },
   { to: "/updates", label: "Updates", group: "Admin" },
   { to: "/settings", label: "Settings", group: "Admin" },

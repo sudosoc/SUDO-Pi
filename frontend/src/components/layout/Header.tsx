@@ -1,12 +1,14 @@
-import { Bell, Search, Sun, Moon, X, Home, ChevronRight } from "lucide-react";
+import { Bell, Search, Sun, Moon, X, Home, ChevronRight, Power, RefreshCw } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useSystemStore } from "@/stores/systemStore";
 import { useNotificationStore } from "@/stores/notificationStore";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { formatUptime } from "@/lib/utils";
 import { useTheme } from "@/contexts/ThemeContext";
+import { useMutation } from "@tanstack/react-query";
+import { apiClient } from "@/api/client";
 
 interface HeaderProps {
   title: string;
@@ -30,11 +32,98 @@ const LEVEL_COLORS: Record<string, string> = {
   info:    "bg-info",
 };
 
+function PowerPanel({ onClose }: { onClose: () => void }) {
+  const [confirming, setConfirming] = useState<"reboot" | "shutdown" | null>(null);
+  const [countdown, setCountdown] = useState(5);
+
+  const rebootMut = useMutation({
+    mutationFn: () => apiClient.post("/system/reboot"),
+    onSettled: onClose,
+  });
+
+  const shutdownMut = useMutation({
+    mutationFn: () => apiClient.post("/system/shutdown"),
+    onSettled: onClose,
+  });
+
+  useEffect(() => {
+    if (!confirming) return;
+    if (countdown === 0) {
+      if (confirming === "reboot") rebootMut.mutate();
+      else shutdownMut.mutate();
+      setConfirming(null);
+      return;
+    }
+    const t = setTimeout(() => setCountdown((c) => c - 1), 1000);
+    return () => clearTimeout(t);
+  }, [confirming, countdown]);
+
+  const startConfirm = (action: "reboot" | "shutdown") => {
+    setConfirming(action);
+    setCountdown(5);
+  };
+
+  const cancel = () => {
+    setConfirming(null);
+    setCountdown(5);
+  };
+
+  const isBusy = rebootMut.isPending || shutdownMut.isPending;
+
+  return (
+    <div
+      className="absolute right-0 top-11 w-52 bg-popover/95 backdrop-blur-xl border border-border/60 rounded-xl shadow-2xl z-20 p-2"
+      style={{ boxShadow: "0 20px 60px hsl(260 50% 3% / 0.7), 0 0 0 1px hsl(var(--primary) / 0.08)" }}
+    >
+      <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider px-2 pt-1 pb-2 border-b border-border/40">
+        Power
+      </p>
+      {confirming ? (
+        <div className="pt-3 pb-1 px-2 space-y-3">
+          <p className="text-xs text-center text-muted-foreground">
+            <span className="font-medium text-foreground">
+              {confirming === "reboot" ? "Rebooting" : "Shutting down"}
+            </span>{" "}
+            in <span className="tabular-nums font-bold text-destructive">{countdown}</span>s…
+          </p>
+          <div className="bg-muted/50 rounded-full h-1 overflow-hidden">
+            <div
+              className="h-full bg-destructive/60 rounded-full transition-all duration-1000 ease-linear"
+              style={{ width: `${(countdown / 5) * 100}%` }}
+            />
+          </div>
+          <Button variant="outline" size="sm" className="w-full" onClick={cancel} disabled={isBusy}>
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <div className="pt-1">
+          <button
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-warning/10 hover:text-warning transition-colors text-sm text-left"
+            onClick={() => startConfirm("reboot")}
+          >
+            <RefreshCw className="w-4 h-4 shrink-0" />
+            Reboot
+          </button>
+          <button
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-destructive/10 hover:text-destructive transition-colors text-sm text-left"
+            onClick={() => startConfirm("shutdown")}
+          >
+            <Power className="w-4 h-4 shrink-0" />
+            Shutdown
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function Header({ title, onOpenPalette }: HeaderProps) {
   const { wsConnected, stats } = useSystemStore();
   const { unreadCount, notifications, markAllRead, clearAll, removeNotification } =
     useNotificationStore();
   const [showNotifications, setShowNotifications] = useState(false);
+  const [showPower, setShowPower] = useState(false);
   const { activeTheme, toggleDarkLight } = useTheme();
   const location = useLocation();
   const isHome = location.pathname === "/";
@@ -83,6 +172,25 @@ export function Header({ title, onOpenPalette }: HeaderProps) {
             ⌘K
           </kbd>
         </button>
+
+        {/* Power */}
+        <div className="relative">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => { setShowPower((v) => !v); setShowNotifications(false); }}
+            title="Power"
+            className="text-muted-foreground/60 hover:text-destructive/80 w-8 h-8"
+          >
+            <Power className="w-3.5 h-3.5" />
+          </Button>
+          {showPower && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setShowPower(false)} />
+              <PowerPanel onClose={() => setShowPower(false)} />
+            </>
+          )}
+        </div>
 
         {/* WS status dot */}
         <span

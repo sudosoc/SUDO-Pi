@@ -38,6 +38,11 @@ class TimezoneRequest(BaseModel):
         return v
 
 
+@router.get("/config")
+async def get_system_config(_: AdminUser) -> dict:
+    return await system_service.get_system_config()
+
+
 @router.get("/stats", response_model=SystemStats)
 async def get_stats(_: ActiveUser) -> SystemStats:
     return await system_service.get_full_system_stats()
@@ -113,6 +118,21 @@ async def set_timezone(body: TimezoneRequest, current_user: AdminUser, db: DBSes
         raise HTTPException(500, "Failed to set timezone")
     await audit.log("system.set_timezone", user=current_user, resource=body.timezone, status_code=200)
     return {"detail": f"Timezone set to {body.timezone}"}
+
+
+@router.post("/ntp", dependencies=[CsrfVerified])
+async def set_ntp(
+    body: dict,
+    current_user: AdminUser,
+    db: DBSession,
+) -> dict:
+    enabled: bool = bool(body.get("enabled", True))
+    audit = AuditService(db)
+    ok = await system_service.set_ntp(enabled)
+    if not ok:
+        raise HTTPException(500, "Failed to configure NTP")
+    await audit.log("system.set_ntp", user=current_user, resource=str(enabled), status_code=200)
+    return {"detail": f"NTP {'enabled' if enabled else 'disabled'}"}
 
 
 @router.get("/backup")

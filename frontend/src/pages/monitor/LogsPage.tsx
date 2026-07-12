@@ -5,14 +5,11 @@ import { systemApi } from "@/api/system";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonList } from "@/components/ui/skeleton";
 import { PageHelp } from "@/components/ui/page-help";
-import { apiClient } from "@/api/client";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { cn, formatRelative } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 
 const PRIORITY_COLORS: Record<number, string> = {
   0: "text-destructive",
@@ -40,22 +37,11 @@ export default function LogsPage() {
   const [unitFilter, setUnitFilter] = useState("");
   const [searchFilter, setSearchFilter] = useState("");
   const [lines, setLines] = useState(200);
-  const [page, setPage] = useState(0);
-  const perPage = 50;
 
   const { data: systemLogs, isFetching: loadingSystem, refetch: refetchSystem } = useQuery({
     queryKey: ["system-logs", unitFilter, lines],
     queryFn: () => systemApi.getLogs(unitFilter || undefined, lines),
     refetchInterval: false,
-  });
-
-  const { data: auditLogs, isFetching: loadingAudit, refetch: refetchAudit } = useQuery({
-    queryKey: ["audit-logs", page],
-    queryFn: async () => {
-      const { data } = await apiClient.get(`/security/audit?skip=${page * perPage}&limit=${perPage}`);
-      return data;
-    },
-    refetchInterval: 30000,
   });
 
   const filteredSystemLogs = (systemLogs ?? []).filter((entry) => {
@@ -65,24 +51,21 @@ export default function LogsPage() {
   });
 
   return (
-    <div className="p-6 h-full flex flex-col">
-      <Tabs defaultValue="system" className="flex flex-col flex-1">
-        <div className="flex items-center justify-between mb-4">
-          <TabsList>
-            <TabsTrigger value="system">System Logs (journald)</TabsTrigger>
-            <TabsTrigger value="audit">Audit Logs</TabsTrigger>
-          </TabsList>
-          <PageHelp
-            title="Logs"
-            points={[
-              "Browse system, kernel and service logs",
-              "Filter by level, service and time range",
-              "Follow logs live as they arrive",
-            ]}
-          />
-        </div>
+    <div className="p-6 h-full flex flex-col gap-4">
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-semibold">System Logs</h2>
+        <PageHelp
+          title="Logs"
+          points={[
+            "Browse system, kernel and service logs via journald",
+            "Filter by level, service unit, or message text",
+            "Increase line count for deeper history",
+          ]}
+        />
+      </div>
 
-        <TabsContent value="system" className="flex flex-col flex-1 gap-4 mt-0">
+      <div className="flex flex-col flex-1 gap-4">
+        <div className="flex flex-col flex-1 gap-4">
           <div className="flex items-center gap-2 flex-wrap">
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground" />
@@ -160,87 +143,8 @@ export default function LogsPage() {
               )}
             </CardContent>
           </Card>
-        </TabsContent>
-
-        <TabsContent value="audit" className="flex flex-col flex-1 gap-4 mt-0">
-          <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" onClick={() => refetchAudit()} loading={loadingAudit}>
-              <RefreshCw className="w-3.5 h-3.5 mr-1" /> Refresh
-            </Button>
-            <span className="text-sm text-muted-foreground">
-              {auditLogs?.total ?? 0} total entries
-            </span>
-          </div>
-
-          <Card className="flex-1 overflow-hidden">
-            <CardContent className="p-0 h-full">
-              {loadingAudit && !auditLogs?.items?.length ? (
-                <SkeletonList count={6} />
-              ) : !auditLogs?.items?.length ? (
-                <EmptyState
-                  icon={FileText}
-                  title="Nothing to show"
-                  description="No audit log entries match the current filters."
-                />
-              ) : (
-              <ScrollArea className="h-full">
-                <table className="w-full text-xs">
-                  <thead className="sticky top-0 bg-card border-b border-border z-10">
-                    <tr>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium">Time</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium">User</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium">Action</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium">Resource</th>
-                      <th className="text-left px-4 py-2 text-muted-foreground font-medium">IP</th>
-                      <th className="text-center px-4 py-2 text-muted-foreground font-medium">Status</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {(auditLogs?.items ?? []).map((log: { id: number; created_at: string; username: string; action: string; resource: string; ip_address: string; status_code: number }) => (
-                      <tr key={log.id} className="border-b border-border/50 hover:bg-secondary/20">
-                        <td className="px-4 py-1.5 text-muted-foreground whitespace-nowrap">
-                          {formatRelative(log.created_at)}
-                        </td>
-                        <td className="px-4 py-1.5 font-medium">{log.username ?? "—"}</td>
-                        <td className="px-4 py-1.5 font-mono">{log.action}</td>
-                        <td className="px-4 py-1.5 text-muted-foreground truncate max-w-[120px]">{log.resource ?? "—"}</td>
-                        <td className="px-4 py-1.5 font-mono text-muted-foreground">{log.ip_address ?? "—"}</td>
-                        <td className="px-4 py-1.5 text-center">
-                          <Badge
-                            variant={
-                              log.status_code >= 400 ? "destructive" :
-                              log.status_code >= 200 ? "success" : "muted"
-                            }
-                            className="text-[10px]"
-                          >
-                            {log.status_code}
-                          </Badge>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </ScrollArea>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="flex items-center gap-2 justify-center">
-            <Button variant="outline" size="sm" onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
-              Previous
-            </Button>
-            <span className="text-sm text-muted-foreground">Page {page + 1}</span>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setPage((p) => p + 1)}
-              disabled={(auditLogs?.items?.length ?? 0) < perPage}
-            >
-              Next
-            </Button>
-          </div>
-        </TabsContent>
-      </Tabs>
+        </div>
+      </div>
     </div>
   );
 }

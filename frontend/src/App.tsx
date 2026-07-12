@@ -13,6 +13,7 @@ const SystemPage       = lazy(() => import("@/pages/monitor/SystemPage"));
 const MetricsPage      = lazy(() => import("@/pages/monitor/MetricsPage"));
 const ProcessPage      = lazy(() => import("@/pages/monitor/ProcessPage"));
 const LogsPage         = lazy(() => import("@/pages/monitor/LogsPage"));
+const TimelinePage     = lazy(() => import("@/pages/monitor/TimelinePage"));
 const AlertsPage       = lazy(() => import("@/pages/monitor/AlertsPage"));
 const AutomationsPage  = lazy(() => import("@/pages/monitor/AutomationsPage"));
 const DiagnosticsPage  = lazy(() => import("@/pages/monitor/DiagnosticsPage"));
@@ -59,7 +60,6 @@ const SystemSnapshotsPage = lazy(() => import("@/pages/tools/SystemSnapshotsPage
 const UsersPage             = lazy(() => import("@/pages/admin/UsersPage"));
 const SystemUsersPage       = lazy(() => import("@/pages/admin/SystemUsersPage"));
 const SecurityPage          = lazy(() => import("@/pages/admin/SecurityPage"));
-const IntrusionDetectionPage = lazy(() => import("@/pages/admin/IntrusionDetectionPage"));
 const AuditLogPage          = lazy(() => import("@/pages/admin/AuditLogPage"));
 const TlsPage               = lazy(() => import("@/pages/admin/TlsPage"));
 const BackupPage            = lazy(() => import("@/pages/admin/BackupPage"));
@@ -100,6 +100,7 @@ export default function App() {
             <Route path="/metrics"     element={<MetricsPage />} />
             <Route path="/processes"   element={<ProcessPage />} />
             <Route path="/logs"        element={<LogsPage />} />
+            <Route path="/timeline"    element={<TimelinePage />} />
             <Route path="/alerts"      element={<AlertsPage />} />
             <Route path="/automations" element={<AutomationsPage />} />
             <Route path="/diagnostics" element={<DiagnosticsPage />} />
@@ -149,7 +150,7 @@ export default function App() {
             <Route path="/settings"             element={<SettingsPage />} />
             <Route path="/account"              element={<AccountPage />} />
             <Route path="/audit-log"            element={<AuditLogPage />} />
-            <Route path="/intrusion-detection"  element={<IntrusionDetectionPage />} />
+            <Route path="/intrusion-detection"  element={<Navigate to="/security" replace />} />
             <Route element={<AdminGuard />}>
               <Route path="/users"        element={<UsersPage />} />
               <Route path="/system-users" element={<SystemUsersPage />} />

@@ -319,6 +319,31 @@ async def get_journal_logs(unit: str | None = None, lines: int = 200) -> list[di
         return []
 
 
+async def get_system_config() -> dict:
+    from app.core.subprocess import run_cmd
+    import socket
+
+    hostname = socket.gethostname()
+
+    _, tz_out, _ = await run_cmd(["timedatectl", "show", "--property=Timezone", "--value"], timeout=5.0)
+    timezone = tz_out.strip() or "UTC"
+
+    _, ntp_out, _ = await run_cmd(["timedatectl", "show", "--property=NTPService", "--value"], timeout=5.0)
+    ntp_service = ntp_out.strip() or ""
+
+    _, ntp_active_out, _ = await run_cmd(
+        ["timedatectl", "show", "--property=NTP", "--value"], timeout=5.0
+    )
+    ntp_enabled = ntp_active_out.strip().lower() == "yes"
+
+    return {
+        "hostname": hostname,
+        "timezone": timezone,
+        "ntp_service": ntp_service,
+        "ntp_enabled": ntp_enabled,
+    }
+
+
 async def set_hostname(hostname: str) -> bool:
     try:
         proc = await asyncio.create_subprocess_exec(
@@ -343,6 +368,13 @@ async def set_timezone(tz: str) -> bool:
         return proc.returncode == 0
     except Exception:
         return False
+
+
+async def set_ntp(enabled: bool) -> bool:
+    from app.core.subprocess import run_cmd
+    action = "true" if enabled else "false"
+    code, _, _ = await run_cmd(["sudo", "timedatectl", "set-ntp", action], timeout=10.0)
+    return code == 0
 
 
 async def kill_process(pid: int) -> None:
