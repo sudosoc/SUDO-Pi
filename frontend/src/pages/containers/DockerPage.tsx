@@ -17,18 +17,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { toast } from "@/components/ui/use-toast";
 import { Slider } from "@/components/ui/slider";
-import { cn } from "@/lib/utils";
-import { formatBytes } from "@/lib/utils";
-
-interface Container {
-  id: string;
-  name: string;
-  image: string;
-  status: string;
-  state: string;
-  created: string;
-  ports: string;
-}
+import { cn, formatBytes } from "@/lib/utils";
+import type { DockerContainer as Container } from "@/types";
 
 interface ContainerResources {
   cpu_cores: number;

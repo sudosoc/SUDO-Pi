@@ -9,17 +9,7 @@ import { EmptyState } from "@/components/ui/EmptyState";
 import { SkeletonCards } from "@/components/ui/skeleton";
 import { PageHelp } from "@/components/ui/page-help";
 import { cn } from "@/lib/utils";
-
-// ─── Types ────────────────────────────────────────────────────────────────────
-
-interface Container {
-  id: string;
-  name: string;
-  image: string;
-  status: string;
-  state: string;
-  ports: string;
-}
+import type { DockerContainer as Container } from "@/types";
 
 interface ServiceApp {
   id: string;

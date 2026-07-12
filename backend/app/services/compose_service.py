@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 import shutil
@@ -22,15 +21,10 @@ def _stack_compose_file(name: str) -> Path:
     return _stack_path(name) / "docker-compose.yml"
 
 
+from app.core.subprocess import run_cmd
+
 async def _run(cmd: list[str], cwd: Path | None = None) -> tuple[int, str, str]:
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        cwd=str(cwd) if cwd else None,
-    )
-    stdout, stderr = await proc.communicate()
-    return proc.returncode, stdout.decode("utf-8", errors="replace"), stderr.decode("utf-8", errors="replace")
+    return await run_cmd(cmd, timeout=None, cwd=cwd)
 
 
 async def _get_stack_services(name: str) -> list[dict]:

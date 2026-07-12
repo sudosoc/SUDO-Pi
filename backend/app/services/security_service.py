@@ -10,19 +10,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.repositories.session_repository import SessionRepository
 
 
+from app.core.subprocess import run_cmd
+
 async def _run(cmd: list[str], timeout: float = 10.0) -> tuple[int, str, str]:
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        proc.kill()
-        await proc.communicate()
-        return -1, "", "timed out"
-    return proc.returncode, stdout.decode(errors="replace"), stderr.decode(errors="replace")
+    return await run_cmd(cmd, timeout=timeout)
 
 
 async def get_fail2ban_status() -> dict:

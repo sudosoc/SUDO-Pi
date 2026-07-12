@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import json
 import re
 from pathlib import Path
@@ -8,18 +7,10 @@ from pathlib import Path
 from loguru import logger
 
 
+from app.core.subprocess import run_cmd
+
 async def _run(cmd: list[str], timeout: float = 10.0) -> tuple[int, str, str]:
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        proc.kill()
-        return -1, "", "Command timed out"
-    return proc.returncode or 0, stdout.decode(errors="replace"), stderr.decode(errors="replace")
+    return await run_cmd(cmd, timeout=timeout)
 
 
 def _parse_size_to_bytes(size_str: str) -> int:

@@ -1,23 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 import re
 
 from loguru import logger
 
 
+from app.core.subprocess import run_cmd
+
 async def _run(cmd: list[str], timeout: float = 8.0) -> tuple[int, str, str]:
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    try:
-        out, err = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        proc.kill()
-        return -1, "", "timeout"
-    return proc.returncode or 0, out.decode(errors="replace"), err.decode(errors="replace")
+    return await run_cmd(cmd, timeout=timeout)
 
 
 async def list_processes() -> list[dict]:

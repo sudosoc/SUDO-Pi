@@ -1,4 +1,3 @@
-import asyncio
 import os
 import re
 import shlex
@@ -35,24 +34,10 @@ _VALID_KEY_TYPES = {
 }
 
 
+from app.core.subprocess import run_cmd
+
 async def _run(cmd: list[str], timeout: float = 15.0, stdin: bytes | None = None) -> tuple[int, str, str]:
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.PIPE if stdin is not None else asyncio.subprocess.DEVNULL,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(
-            proc.communicate(input=stdin), timeout=timeout
-        )
-        return proc.returncode or 0, stdout.decode(errors="replace"), stderr.decode(errors="replace")
-    except asyncio.TimeoutError:
-        logger.error("SSH command timed out: {}", cmd)
-        return 1, "", "Timeout"
-    except Exception as exc:
-        logger.error("SSH command error {}: {}", cmd, exc)
-        return 1, "", str(exc)
+    return await run_cmd(cmd, timeout=timeout, stdin=stdin)
 
 
 def _home_dir(user: str) -> Path:

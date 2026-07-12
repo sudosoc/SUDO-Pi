@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import re
 
 from loguru import logger
@@ -25,21 +24,11 @@ AP_INTERFACE = "wlan0"
 AP_NETWORK = "192.168.4.0/24"
 
 
+from app.core.subprocess import run_cmd
+
 async def _run(cmd: list[str], timeout: float = 8.0) -> tuple[int, str]:
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        out, _ = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        return proc.returncode or 0, out.decode(errors="replace").strip()
-    except asyncio.TimeoutError:
-        return -1, "timed out"
-    except FileNotFoundError:
-        return 127, "command not found"
-    except Exception as exc:  # noqa: BLE001
-        return -1, str(exc)
+    code, out, _ = await run_cmd(cmd, timeout=timeout, merge_stderr=True)
+    return code, out.strip()
 
 
 async def detect_upstream_interface() -> str | None:

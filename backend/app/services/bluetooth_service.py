@@ -5,19 +5,10 @@ import asyncio
 from loguru import logger
 
 
+from app.core.subprocess import run_cmd
+
 async def _run(cmd: list[str], timeout: float = 30.0) -> tuple[int, str, str]:
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        proc.kill()
-        await proc.communicate()
-        return -1, "", "Command timed out"
-    return proc.returncode, stdout.decode(errors="replace"), stderr.decode(errors="replace")
+    return await run_cmd(cmd, timeout=timeout)
 
 
 async def _bluetoothctl(*args: str, input_text: str | None = None, timeout: float = 20.0) -> tuple[int, str]:

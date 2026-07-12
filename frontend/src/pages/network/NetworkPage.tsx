@@ -15,7 +15,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/use-toast";
-import type { WifiScanResult } from "@/types";
+import type { WifiScanResult, PortalStatus } from "@/types";
 import { apiClient } from "@/api/client";
 import { useAuthStore } from "@/stores/authStore";
 
@@ -593,13 +593,6 @@ function PortScannerTab() {
 }
 
 // ─── Captive Portal Tab ───────────────────────────────────────────────────────
-
-interface PortalStatus {
-  enabled: boolean;
-  allowed_macs: string[];
-  title: string;
-  message: string;
-}
 
 function CaptivePortalTab() {
   const queryClient = useQueryClient();

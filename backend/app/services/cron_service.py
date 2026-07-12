@@ -1,4 +1,3 @@
-import asyncio
 import re
 from pathlib import Path
 from loguru import logger
@@ -7,21 +6,10 @@ MANAGED_CRON_FILE = Path("/etc/cron.d/sudo-pi-managed")
 SYSTEM_CRON_DIR = Path("/etc/cron.d")
 
 
+from app.core.subprocess import run_cmd
+
 async def _run(cmd: list[str], timeout: float = 10.0) -> tuple[int, str, str]:
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-        return proc.returncode or 0, stdout.decode(errors="replace"), stderr.decode(errors="replace")
-    except asyncio.TimeoutError:
-        logger.error("Command timed out: {}", cmd)
-        return 1, "", "Timeout"
-    except Exception as exc:
-        logger.error("Command error {}: {}", cmd, exc)
-        return 1, "", str(exc)
+    return await run_cmd(cmd, timeout=timeout)
 
 
 def _looks_like_disabled_job(line: str) -> bool:

@@ -1,19 +1,14 @@
 from __future__ import annotations
 
-import asyncio
 import json
 
 from loguru import logger
 
 
+from app.core.subprocess import run_cmd
+
 async def _run(cmd: list[str]) -> tuple[int, str, str]:
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-    )
-    stdout, stderr = await proc.communicate()
-    return proc.returncode, stdout.decode("utf-8", errors="replace"), stderr.decode("utf-8", errors="replace")
+    return await run_cmd(cmd, timeout=None)
 
 
 async def get_container_resources(container_id: str) -> dict:

@@ -222,6 +222,23 @@ export interface PaginatedResponse<T> {
   page_size?: number;
 }
 
+export interface DockerContainer {
+  id: string;
+  name: string;
+  image: string;
+  status: string;
+  state: string;
+  ports: string;
+  created?: string;
+}
+
+export interface PortalStatus {
+  enabled: boolean;
+  allowed_macs: string[];
+  title: string;
+  message: string;
+}
+
 export type NotificationLevel = "info" | "success" | "warning" | "error";
 
 export interface Notification {

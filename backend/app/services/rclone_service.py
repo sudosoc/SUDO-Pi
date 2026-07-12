@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import asyncio
 import configparser
 import io
 import re
@@ -29,28 +28,14 @@ BACKUP_DIR = Path("/opt/sudo-pi/backups")
 # ─── Internal helpers ─────────────────────────────────────────────────────────
 
 
+from app.core.subprocess import run_cmd
+
 async def _run(
     cmd: list[str],
     timeout: float = 60.0,
     env: dict[str, str] | None = None,
 ) -> tuple[int, str, str]:
-    import os as _os
-    proc_env = _os.environ.copy()
-    if env:
-        proc_env.update(env)
-
-    proc = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE,
-        env=proc_env,
-    )
-    try:
-        stdout, stderr = await asyncio.wait_for(proc.communicate(), timeout=timeout)
-    except asyncio.TimeoutError:
-        proc.kill()
-        return -1, "", "Command timed out"
-    return proc.returncode or 0, stdout.decode(errors="replace"), stderr.decode(errors="replace")
+    return await run_cmd(cmd, timeout=timeout, env=env)
 
 
 def _rclone_env() -> dict[str, str]:

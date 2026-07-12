@@ -50,23 +50,12 @@ else exec xterm; fi
 """
 
 
+from app.core.subprocess import run_cmd
+
 async def _run(cmd: list[str], timeout: float = 20.0, input_text: str | None = None) -> tuple[int, str]:
-    try:
-        proc = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdin=asyncio.subprocess.PIPE if input_text is not None else None,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.STDOUT,
-        )
-        data = input_text.encode() if input_text is not None else None
-        out, _ = await asyncio.wait_for(proc.communicate(input=data), timeout=timeout)
-        return proc.returncode or 0, out.decode(errors="replace").strip()
-    except asyncio.TimeoutError:
-        return -1, "timed out"
-    except FileNotFoundError:
-        return 127, "command not found"
-    except Exception as exc:  # noqa: BLE001
-        return -1, str(exc)
+    stdin = input_text.encode() if input_text is not None else None
+    code, out, _ = await run_cmd(cmd, timeout=timeout, stdin=stdin, merge_stderr=True)
+    return code, out.strip()
 
 
 def _which(binary: str) -> bool:

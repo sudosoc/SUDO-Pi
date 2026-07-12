@@ -9,13 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
-
-interface PortalStatus {
-  enabled: boolean;
-  allowed_macs: string[];
-  title: string;
-  message: string;
-}
+import type { PortalStatus } from "@/types";
 
 function useToast() {
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
