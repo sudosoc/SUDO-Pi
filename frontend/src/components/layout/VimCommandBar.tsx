@@ -22,7 +22,19 @@ interface CmdDef {
   run:         (args: string[], ctx: CmdCtx) => Promise<string>;
 }
 
-const ALL_PAGES = NAV_GROUPS.flatMap((g) => g.items).map((i) => i.to);
+const ALL_PAGES = [
+  ...NAV_GROUPS.flatMap((g) => g.items).map((i) => i.to),
+  // hub sub-tabs (deep links)
+  "/system?tab=metrics", "/system?tab=processes", "/system?tab=logs",
+  "/network?tab=devices", "/network?tab=traffic", "/network?tab=scanner",
+  "/network/config?tab=dns", "/network/config?tab=control", "/network/config?tab=ports",
+  "/network/remote?tab=vpn", "/network/remote?tab=captive", "/network/remote?tab=proxy",
+  "/docker?tab=compose",
+  "/storage?tab=smart",
+  "/security?tab=audit", "/security?tab=firewall",
+  "/users?tab=system",
+  "/maintenance?tab=backups", "/maintenance?tab=settings",
+];
 
 const CMD_DEFS: CmdDef[] = [
   {

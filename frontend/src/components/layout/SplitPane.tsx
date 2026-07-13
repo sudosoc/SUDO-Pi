@@ -7,17 +7,17 @@ import { cn } from "@/lib/utils";
 // ── Available split routes ─────────────────────────────────────────────────────
 
 const SPLIT_ROUTES: Record<string, { label: string; component: React.LazyExoticComponent<React.ComponentType> }> = {
-  "/system":          { label: "System",    component: lazy(() => import("@/pages/monitor/SystemPage")) },
-  "/processes":       { label: "Processes", component: lazy(() => import("@/pages/monitor/ProcessPage")) },
-  "/logs":            { label: "Logs",      component: lazy(() => import("@/pages/monitor/LogsPage")) },
-  "/metrics":         { label: "Metrics",   component: lazy(() => import("@/pages/monitor/MetricsPage")) },
-  "/network-traffic": { label: "Traffic",   component: lazy(() => import("@/pages/network/NetworkTrafficPage")) },
-  "/devices":         { label: "Devices",   component: lazy(() => import("@/pages/network/DevicesPage")) },
-  "/firewall":        { label: "Firewall",  component: lazy(() => import("@/pages/network/FirewallPage")) },
-  "/network-scanner": { label: "Scanner",   component: lazy(() => import("@/pages/network/NetworkScannerPage")) },
-  "/docker":          { label: "Docker",    component: lazy(() => import("@/pages/containers/DockerPage")) },
-  "/terminal":        { label: "Terminal",  component: lazy(() => import("@/pages/tools/TerminalPage")) },
-  "/storage":         { label: "Storage",   component: lazy(() => import("@/pages/hardware/StoragePage")) },
+  "/system":           { label: "System",          component: lazy(() => import("@/pages/monitor/SystemHubPage")) },
+  "/network":          { label: "Network",          component: lazy(() => import("@/pages/network/NetworkHubPage")) },
+  "/network/config":   { label: "Network Config",   component: lazy(() => import("@/pages/network/NetworkConfigPage")) },
+  "/network/remote":   { label: "Remote Access",    component: lazy(() => import("@/pages/network/RemoteAccessPage")) },
+  "/docker":           { label: "Docker",           component: lazy(() => import("@/pages/containers/DockerHubPage")) },
+  "/storage":          { label: "Storage",          component: lazy(() => import("@/pages/hardware/StorageHubPage")) },
+  "/security":         { label: "Security",         component: lazy(() => import("@/pages/admin/SecurityHubPage")) },
+  "/terminal":         { label: "Terminal",         component: lazy(() => import("@/pages/tools/TerminalPage")) },
+  "/logs":             { label: "Logs",             component: lazy(() => import("@/pages/monitor/LogsPage")) },
+  "/maintenance":      { label: "Maintenance",      component: lazy(() => import("@/pages/admin/MaintenancePage")) },
+  "/diagnostics":      { label: "Diagnostics",      component: lazy(() => import("@/pages/monitor/DiagnosticsPage")) },
 };
 
 function PaneLoader() {

@@ -245,7 +245,7 @@ export function DeviceDrawer({ device, onClose }: DeviceDrawerProps) {
                   size="sm"
                   variant="outline"
                   className="h-8 text-[11px] w-full"
-                  onClick={() => navigate(`/network-scanner?host=${device.ip_address}`)}
+                  onClick={() => navigate(`/network?tab=scanner&host=${device.ip_address}`)}
                   disabled={!device.ip_address}
                 >
                   <Search className="w-3 h-3 mr-1.5" /> Port Scan

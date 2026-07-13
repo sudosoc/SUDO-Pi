@@ -1,12 +1,12 @@
 import {
-  Activity, Archive, ArrowLeftRight, BatteryCharging, Bell, Bluetooth,
-  Box, BarChart2, Camera, Clock, Cpu, DoorOpen,
-  DownloadCloud, FileText, Flame, FolderOpen, Gauge, GitBranch,
-  Globe, HardDrive, HeartPulse, KeyRound, LayoutGrid, Layers,
-  LockKeyhole, Monitor, MonitorPlay, MonitorSmartphone,
-  Network, Package, Power, Radar, ScrollText, Server,
-  Settings, Share2, Shield, ShieldBan, Shuffle, Stethoscope,
-  Store, Terminal, UserCog, Users, Wifi, Workflow, Wrench,
+  Activity, BatteryCharging, Bell, Bluetooth,
+  Box, Camera, Clock, Cpu,
+  DownloadCloud, FolderOpen, Gauge, GitBranch,
+  Globe, HardDrive, KeyRound, LayoutGrid,
+  LockKeyhole, Monitor, MonitorPlay,
+  Network, Package, Power,
+  Settings, Share2, Shield, Stethoscope,
+  Store, Terminal, Users, Wifi, Workflow, Wrench,
 } from "lucide-react";
 
 export interface NavItem {
@@ -26,6 +26,7 @@ export interface NavGroup {
 }
 
 export const NAV_GROUPS: NavGroup[] = [
+  // ── Monitor ──────────────────────────────────────────────────────────────────
   {
     id: "monitor",
     label: "Monitor",
@@ -34,15 +35,14 @@ export const NAV_GROUPS: NavGroup[] = [
     bg: "bg-cyan-400/10",
     items: [
       { to: "/system",      icon: Cpu,         label: "System" },
-      { to: "/processes",   icon: Server,      label: "Processes" },
-      { to: "/metrics",     icon: BarChart2,   label: "Metrics" },
-      { to: "/logs",        icon: FileText,    label: "Logs" },
       { to: "/timeline",    icon: Clock,       label: "Timeline",    roles: ["admin"] },
       { to: "/alerts",      icon: Bell,        label: "Alerts",      roles: ["admin"] },
       { to: "/automations", icon: Workflow,    label: "Automations", roles: ["admin"] },
       { to: "/diagnostics", icon: Stethoscope, label: "Diagnostics", roles: ["admin", "operator"] },
     ],
   },
+
+  // ── Network ───────────────────────────────────────────────────────────────────
   {
     id: "network",
     label: "Network",
@@ -50,21 +50,16 @@ export const NAV_GROUPS: NavGroup[] = [
     color: "text-sky-400",
     bg: "bg-sky-400/10",
     items: [
-      { to: "/network",          icon: Wifi,              label: "Overview" },
-      { to: "/network-traffic",  icon: BarChart2,         label: "Traffic" },
-      { to: "/devices",          icon: MonitorSmartphone, label: "Devices" },
-      { to: "/device-control",   icon: ShieldBan,         label: "Device Control",  roles: ["admin"] },
-      { to: "/network-scanner",  icon: Radar,             label: "Scanner",         roles: ["admin", "operator"] },
-      { to: "/network-topology", icon: Share2,            label: "Topology",        roles: ["admin", "operator"] },
-      { to: "/dns",              icon: Globe,             label: "DNS & DHCP",      roles: ["admin"] },
-      { to: "/vpn",              icon: Network,           label: "VPN",             roles: ["admin", "operator"] },
-      { to: "/captive-portal",   icon: DoorOpen,          label: "Captive Portal",  roles: ["admin"] },
-      { to: "/reverse-proxy",    icon: ArrowLeftRight,    label: "Reverse Proxy",   roles: ["admin", "operator"] },
-      { to: "/wake-on-lan",      icon: Power,             label: "Wake-on-LAN",     roles: ["admin", "operator"] },
-      { to: "/port-forwards",    icon: Shuffle,           label: "Port Forwards",   roles: ["admin"] },
-      { to: "/speedtest",        icon: Gauge,             label: "Speed Test" },
+      { to: "/network",          icon: Wifi,    label: "Overview" },
+      { to: "/network/config",   icon: Globe,   label: "Config",        roles: ["admin"] },
+      { to: "/network/remote",   icon: Network, label: "Remote Access", roles: ["admin", "operator"] },
+      { to: "/network-topology", icon: Share2,  label: "Topology",      roles: ["admin", "operator"] },
+      { to: "/wake-on-lan",      icon: Power,   label: "Wake-on-LAN",   roles: ["admin", "operator"] },
+      { to: "/speedtest",        icon: Gauge,   label: "Speed Test" },
     ],
   },
+
+  // ── Apps ─────────────────────────────────────────────────────────────────────
   {
     id: "apps",
     label: "Apps",
@@ -72,12 +67,13 @@ export const NAV_GROUPS: NavGroup[] = [
     color: "text-violet-400",
     bg: "bg-violet-400/10",
     items: [
-      { to: "/services",       icon: LayoutGrid, label: "Services" },
-      { to: "/docker",         icon: Box,        label: "Docker",    roles: ["admin", "operator"] },
-      { to: "/docker/compose", icon: Layers,     label: "Compose",   roles: ["admin", "operator"] },
-      { to: "/app-store",      icon: Store,      label: "App Store", roles: ["admin", "operator"] },
+      { to: "/services",  icon: LayoutGrid, label: "Services" },
+      { to: "/docker",    icon: Box,        label: "Docker",    roles: ["admin", "operator"] },
+      { to: "/app-store", icon: Store,      label: "App Store", roles: ["admin", "operator"] },
     ],
   },
+
+  // ── Hardware ─────────────────────────────────────────────────────────────────
   {
     id: "hardware",
     label: "Hardware",
@@ -85,14 +81,15 @@ export const NAV_GROUPS: NavGroup[] = [
     color: "text-orange-400",
     bg: "bg-orange-400/10",
     items: [
+      { to: "/storage",    icon: HardDrive,       label: "Storage" },
       { to: "/gpio",       icon: GitBranch,       label: "GPIO",         roles: ["admin", "operator"] },
       { to: "/bluetooth",  icon: Bluetooth,       label: "Bluetooth" },
-      { to: "/storage",    icon: HardDrive,       label: "Storage" },
       { to: "/display",    icon: Monitor,         label: "Display",      roles: ["admin", "operator"] },
-      { to: "/smart-disk", icon: HeartPulse,      label: "SMART Disks",  roles: ["admin", "operator"] },
       { to: "/ups",        icon: BatteryCharging, label: "UPS Monitor",  roles: ["admin", "operator"] },
     ],
   },
+
+  // ── Tools ─────────────────────────────────────────────────────────────────────
   {
     id: "tools",
     label: "Tools",
@@ -109,6 +106,8 @@ export const NAV_GROUPS: NavGroup[] = [
       { to: "/snapshots",      icon: Camera,      label: "Snapshots",       roles: ["admin"] },
     ],
   },
+
+  // ── Security ──────────────────────────────────────────────────────────────────
   {
     id: "security",
     label: "Security",
@@ -116,12 +115,12 @@ export const NAV_GROUPS: NavGroup[] = [
     color: "text-rose-400",
     bg: "bg-rose-400/10",
     items: [
-      { to: "/security",  icon: Shield,      label: "Overview",  roles: ["admin"] },
-      { to: "/audit-log", icon: ScrollText,  label: "Audit Log", roles: ["admin"] },
-      { to: "/firewall",  icon: Flame,       label: "Firewall",  roles: ["admin"] },
-      { to: "/tls",       icon: LockKeyhole, label: "TLS Certs", roles: ["admin"] },
+      { to: "/security", icon: Shield,      label: "Security",  roles: ["admin"] },
+      { to: "/tls",      icon: LockKeyhole, label: "TLS Certs", roles: ["admin"] },
     ],
   },
+
+  // ── Admin ─────────────────────────────────────────────────────────────────────
   {
     id: "admin",
     label: "Admin",
@@ -129,11 +128,8 @@ export const NAV_GROUPS: NavGroup[] = [
     color: "text-slate-400",
     bg: "bg-slate-400/10",
     items: [
-      { to: "/users",        icon: Users,         label: "Dashboard Users", roles: ["admin"] },
-      { to: "/system-users", icon: UserCog,       label: "Pi Users",        roles: ["admin"] },
-      { to: "/backup",       icon: Archive,       label: "Backup",          roles: ["admin"] },
-      { to: "/updates",      icon: DownloadCloud, label: "Updates",         roles: ["admin"] },
-      { to: "/settings",     icon: Settings,      label: "Settings",        roles: ["admin"] },
+      { to: "/users",       icon: Users,         label: "Users",       roles: ["admin"] },
+      { to: "/maintenance", icon: DownloadCloud, label: "Maintenance", roles: ["admin"] },
     ],
   },
 ];
@@ -145,6 +141,8 @@ export function getActiveGroup(pathname: string, groups: NavGroup[]): NavGroup |
       const match =
         item.to === "/docker"
           ? pathname === "/docker" || pathname.startsWith("/docker/")
+          : item.to === "/network"
+          ? pathname === "/network" || pathname === "/network/config" || pathname === "/network/remote"
           : pathname.startsWith(item.to);
       if (match) return group;
     }
