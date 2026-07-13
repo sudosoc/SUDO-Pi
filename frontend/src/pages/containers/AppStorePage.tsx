@@ -5,6 +5,12 @@ import {
   BarChart2, Activity, Lock, GitBranch, Workflow,
   Store, Search, Download, Trash2, RefreshCw, CheckCircle2,
   Circle, AlertCircle,
+  Folder, Camera, Image, FileText, Film, Music, Headphones, BookOpen,
+  ShieldCheck, ArrowLeftRight, Network, Gauge, Box, Code2,
+  Brain, Sparkles, Cpu, Mic, Book, CheckSquare, Bookmark, PenLine,
+  Rss, Archive, BellRing, Send, MessageCircle, MessageSquare,
+  Eye, HardDrive, ScrollText, Monitor, Radio, Zap, ShoppingCart,
+  Gamepad2, Swords, Wrench, UserCheck, Key,
 } from "lucide-react";
 import { apiClient, getApiError } from "@/api/client";
 import { Card, CardContent } from "@/components/ui/card";
@@ -45,9 +51,15 @@ interface AppEntry {
   installed: boolean;
 }
 
-const CATEGORIES = ["All", "Storage", "Media", "Network", "Development", "IoT", "Security"];
+const CATEGORIES = [
+  "All",
+  "Storage", "Media", "Network", "Development",
+  "AI", "Productivity", "Communication",
+  "Monitoring", "IoT", "Security", "Games",
+];
 
 const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
+  // original
   cloud: Cloud,
   tv: Tv,
   shield: Shield,
@@ -58,6 +70,58 @@ const ICON_MAP: Record<string, React.ComponentType<{ className?: string }>> = {
   lock: Lock,
   "git-branch": GitBranch,
   workflow: Workflow,
+  // storage
+  folder: Folder,
+  "refresh-cw": RefreshCw,
+  camera: Camera,
+  image: Image,
+  "file-text": FileText,
+  // media
+  film: Film,
+  music: Music,
+  headphones: Headphones,
+  "book-open": BookOpen,
+  // network
+  "shield-check": ShieldCheck,
+  "arrow-left-right": ArrowLeftRight,
+  network: Network,
+  // development
+  gauge: Gauge,
+  box: Box,
+  "code-2": Code2,
+  // ai
+  brain: Brain,
+  sparkles: Sparkles,
+  cpu: Cpu,
+  mic: Mic,
+  // productivity
+  book: Book,
+  "check-square": CheckSquare,
+  bookmark: Bookmark,
+  "pen-line": PenLine,
+  rss: Rss,
+  archive: Archive,
+  // communication
+  "bell-ring": BellRing,
+  send: Send,
+  "message-circle": MessageCircle,
+  "message-square": MessageSquare,
+  // monitoring
+  eye: Eye,
+  "hard-drive": HardDrive,
+  "scroll-text": ScrollText,
+  monitor: Monitor,
+  // iot
+  radio: Radio,
+  zap: Zap,
+  "shopping-cart": ShoppingCart,
+  // games
+  "gamepad-2": Gamepad2,
+  swords: Swords,
+  wrench: Wrench,
+  // security
+  "user-check": UserCheck,
+  key: Key,
 };
 
 function AppIcon({ icon, className }: { icon: string; className?: string }) {
