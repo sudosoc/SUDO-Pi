@@ -35,7 +35,8 @@ class Settings(BaseSettings):
     DATABASE_URL: str = f"sqlite+aiosqlite:///{BASE_DIR}/data/sudo_pi.db"
 
     CORS_ORIGINS: list[str] = [
-        "https://pi.local",
+        "https://sudo.local",
+        "https://sudo-pi.local",
         "https://192.168.4.1",
         "http://localhost:5173",
         "http://127.0.0.1:5173",

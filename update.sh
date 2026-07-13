@@ -91,7 +91,7 @@ rsync -a --delete \
     "${REPO_DIR}/backend/app/" "${BACKEND_DIR}/app/" 2>&1 | tee -a "${LOG_FILE}"
 cp "${REPO_DIR}/backend/requirements.txt" "${BACKEND_DIR}/requirements.txt"
 [[ -f "${REPO_DIR}/backend/alembic.ini" ]] && cp "${REPO_DIR}/backend/alembic.ini" "${BACKEND_DIR}/" || true
-[[ -d "${REPO_DIR}/backend/alembic" ]] && rsync -a "${REPO_DIR}/backend/alembic/" "${BACKEND_DIR}/alembic/" || true
+[[ -d "${REPO_DIR}/backend/migrations" ]] && rsync -a "${REPO_DIR}/backend/migrations/" "${BACKEND_DIR}/migrations/" || true
 
 if [[ -x "${VENV_DIR}/bin/pip" ]]; then
     info "Installing Python dependencies..."
@@ -153,8 +153,8 @@ if [[ -f "${REPO_DIR}/scripts/internet-sharing.sh" ]]; then
 fi
 
 # ── 7. Health check ──────────────────────────────────────────────────────────
-for _ in $(seq 1 10); do
-    if curl -sk --max-time 3 "https://127.0.0.1/api/v1/health" | grep -q '"status"'; then
+for _ in $(seq 1 15); do
+    if curl -s --max-time 3 "http://127.0.0.1:8000/api/v1/health" | grep -q '"status"'; then
         ok "Health check passed"; break
     fi
     sleep 1

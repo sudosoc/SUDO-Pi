@@ -33,7 +33,7 @@ const ALL_PAGES = [
   "/storage?tab=smart",
   "/security?tab=audit", "/security?tab=firewall",
   "/users?tab=system",
-  "/maintenance?tab=backups", "/maintenance?tab=settings",
+  "/maintenance?tab=updates", "/maintenance?tab=backups", "/maintenance?tab=settings",
 ];
 
 const CMD_DEFS: CmdDef[] = [

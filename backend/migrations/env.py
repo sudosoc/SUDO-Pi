@@ -12,11 +12,21 @@ from alembic import context
 from app.core.config import settings
 from app.core.database import Base
 
-# Import all models so Alembic can detect them
-import app.models.user      # noqa: F401
-import app.models.session   # noqa: F401
-import app.models.audit     # noqa: F401
-import app.models.network   # noqa: F401
+# Import ALL models so Alembic can detect every table
+import app.models.user               # noqa: F401
+import app.models.session            # noqa: F401
+import app.models.audit              # noqa: F401
+import app.models.network            # noqa: F401
+import app.models.alerts             # noqa: F401
+import app.models.automation         # noqa: F401
+import app.models.backup             # noqa: F401
+import app.models.device_bandwidth   # noqa: F401
+import app.models.device_policy      # noqa: F401
+import app.models.docker_stats_history  # noqa: F401
+import app.models.known_device       # noqa: F401
+import app.models.metrics            # noqa: F401
+import app.models.os_update          # noqa: F401
+import app.models.uptime             # noqa: F401
 
 config = context.config
 

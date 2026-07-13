@@ -117,7 +117,7 @@ setup_dirs_and_backend() {
         "${REPO_DIR}/backend/app/" "${BACKEND_DIR}/app/"
     cp "${REPO_DIR}/backend/requirements.txt" "${BACKEND_DIR}/requirements.txt"
     [[ -f "${REPO_DIR}/backend/alembic.ini" ]] && cp "${REPO_DIR}/backend/alembic.ini" "${BACKEND_DIR}/" || true
-    [[ -d "${REPO_DIR}/backend/alembic" ]] && rsync -a "${REPO_DIR}/backend/alembic/" "${BACKEND_DIR}/alembic/" || true
+    [[ -d "${REPO_DIR}/backend/migrations" ]] && rsync -a "${REPO_DIR}/backend/migrations/" "${BACKEND_DIR}/migrations/" || true
     success "Backend synced"
 }
 
@@ -309,8 +309,9 @@ start_services() {
 verify_and_summary() {
     info "Verifying backend health..."
     local ok=false
-    for _ in $(seq 1 15); do
-        if curl -sk --max-time 3 "https://127.0.0.1/api/v1/health" | grep -q '"status"'; then
+    for _ in $(seq 1 20); do
+        # Check uvicorn directly (avoids nginx TLS complexity during first-time cert setup)
+        if curl -s --max-time 3 "http://127.0.0.1:8000/api/v1/health" | grep -q '"status"'; then
             ok=true; break
         fi
         sleep 1

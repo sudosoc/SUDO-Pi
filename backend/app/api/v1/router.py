@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from app.core.config import settings
 
 from app.api.v1 import (
     auth,
@@ -53,6 +54,12 @@ from app.api.v1 import (
 )
 
 api_router = APIRouter(prefix="/api/v1")
+
+
+@api_router.get("/health", include_in_schema=False, tags=["System"])
+async def api_health() -> dict:
+    return {"status": "ok", "app": settings.APP_NAME, "version": settings.APP_VERSION}
+
 
 api_router.include_router(auth.router)
 api_router.include_router(system.router)
