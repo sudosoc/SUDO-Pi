@@ -191,6 +191,8 @@ export default function DevicesPage() {
                         onClick={() => setActiveDevice(device)}
                         data-ctx="device"
                         data-ctx-value={device.ip_address ?? device.mac_address}
+                        data-ctx-mac={device.mac_address}
+                        data-ctx-name={device.hostname ?? device.ip_address ?? device.mac_address}
                       >
                         <td className="px-4 py-3">
                           <div className="flex items-center gap-2">

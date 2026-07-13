@@ -447,6 +447,9 @@ export default function ProcessPage() {
                   {filtered.map((proc) => (
                     <Fragment key={proc.pid}>
                       <tr
+                        data-ctx="process"
+                        data-ctx-value={String(proc.pid)}
+                        data-ctx-name={proc.command.split(" ")[0].split("/").pop() ?? proc.command}
                         className={cn(
                           "border-b border-border/30 hover:bg-secondary/30 transition-colors",
                           envPid === proc.pid ? "bg-cyan-950/10 border-cyan-500/20" : "last:border-0",

@@ -44,8 +44,16 @@ function LogLine({ entry, i }: { entry: Record<string, string>; i: number }) {
   const message = entry["MESSAGE"] ?? "";
   const unit = entry["_SYSTEMD_UNIT"] ?? entry["SYSLOG_IDENTIFIER"] ?? "";
 
+  const fullLine = [timestamp?.toLocaleTimeString(), PRIORITY_LABELS[priority], unit, message]
+    .filter(Boolean).join("  ");
+
   return (
-    <div key={i} className="flex gap-3 px-4 py-1.5 hover:bg-secondary/20">
+    <div
+      key={i}
+      data-ctx="log-line"
+      data-ctx-value={fullLine}
+      className="flex gap-3 px-4 py-1.5 hover:bg-secondary/20 cursor-default"
+    >
       <span className="text-muted-foreground shrink-0 w-36">
         {timestamp?.toLocaleTimeString()}
       </span>

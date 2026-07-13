@@ -480,7 +480,13 @@ function ContainerRow({ c }: { c: Container }) {
 
   return (
     <>
-      <tr className="border-b border-border/50 hover:bg-secondary/20">
+      <tr
+        data-ctx="container"
+        data-ctx-value={c.id}
+        data-ctx-name={c.name.replace("/", "")}
+        data-ctx-status={c.state}
+        className="border-b border-border/50 hover:bg-secondary/20"
+      >
         <td className="px-4 py-2 font-mono font-medium">{c.name.replace("/", "")}</td>
         <td className="px-4 py-2 text-muted-foreground text-xs truncate max-w-[120px]">{c.image}</td>
         <td className="px-4 py-2 text-center">
